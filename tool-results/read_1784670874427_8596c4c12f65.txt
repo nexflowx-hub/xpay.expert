@@ -1,0 +1,868 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import * as React from "react";
+     4→     4→import { motion, AnimatePresence } from "framer-motion";
+     5→     5→import {
+     6→     6→  Search,
+     7→     7→  Bell,
+     8→     8→  Menu,
+     9→     9→  X,
+    10→    10→  ChevronDown,
+    11→    11→  Sun,
+    12→    12→  Moon,
+    13→    13→  LogOut,
+    14→    14→  User as UserIcon,
+    15→    15→  Settings,
+    16→    16→  CreditCard,
+    17→    17→  Command,
+    18→    18→  Sparkles,
+    19→    19→  PanelLeftClose,
+    20→    20→  PanelLeft,
+    21→    21→  LifeBuoy,
+    22→    22→  ShieldCheck,
+    23→    23→  Plus,
+    24→    24→  Store,
+    25→    25→  Check,
+    26→    26→  ArrowRightLeft,
+    27→    27→} from "lucide-react";
+    28→    28→import { useTheme } from "next-themes";
+    29→    29→import { useRouter, usePathname } from "next/navigation";
+    30→    30→import { useAuth } from "@/stores/auth";
+    31→    31→import { useUi } from "@/stores/ui";
+    32→    32→import { useWorkspaceStore } from "@/stores/workspace";
+    33→    33→import { useAdminStore } from "@/stores/admin";
+    34→    34→import { useT } from "@/lib/i18n";
+    35→    35→import {
+    36→    36→  PRODUCT_AREAS,
+    37→    37→  NAV_MAP,
+    38→    38→  getProductAreaFromPath,
+    39→    39→  type NavSection,
+    40→    40→  type NavItem,
+    41→    41→  type ProductArea,
+    42→    42→  type ProductConfig,
+    43→    43→} from "@/config";
+    44→    44→import { cn, initials } from "@/lib/utils";
+    45→    45→import { Button } from "@/components/ui/button";
+    46→    46→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    47→    47→import { Badge } from "@/components/ui/badge";
+    48→    48→import {
+    49→    49→  DropdownMenu,
+    50→    50→  DropdownMenuContent,
+    51→    51→  DropdownMenuItem,
+    52→    52→  DropdownMenuLabel,
+    53→    53→  DropdownMenuSeparator,
+    54→    54→  DropdownMenuTrigger,
+    55→    55→} from "@/components/ui/dropdown-menu";
+    56→    56→import {
+    57→    57→  CommandDialog,
+    58→    58→  CommandInput,
+    59→    59→  CommandList,
+    60→    60→  CommandEmpty,
+    61→    61→  CommandGroup,
+    62→    62→  CommandItem,
+    63→    63→} from "@/components/ui/command";
+    64→    64→import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+    65→    65→import { LanguageSwitcher } from "@/components/shared/language-switcher";
+    66→    66→import { XSymbol } from "@/components/shared/x-symbol";
+    67→    67→import { XpIAChat } from "@/components/shared/xpia-chat";
+    68→    68→import { toast } from "sonner";
+    69→    69→import { APP_NAME } from "@/config";
+    70→    70→
+    71→    71→// ---- Logo ----
+    72→    72→
+    73→    73→function Logo({ compact = false }: { compact?: boolean }) {
+    74→    74→  return (
+    75→    75→    <div className="flex items-center gap-2.5">
+    76→    76→      <XSymbol className="h-8 w-8" />
+    77→    77→      {!compact && (
+    78→    78→        <div className="flex flex-col leading-none">
+    79→    79→          <span className="text-sm font-semibold tracking-tight text-foreground">
+    80→    80→            {APP_NAME}
+    81→    81→          </span>
+    82→    82→          <span className="text-[10px] text-muted-foreground">Payments OS</span>
+    83→    83→        </div>
+    84→    84→      )}
+    85→    85→    </div>
+    86→    86→  );
+    87→    87→}
+    88→    88→
+    89→    89→// ---- Product Switcher ----
+    90→    90→
+    91→    91→function ProductSwitcher({
+    92→    92→  activeProduct,
+    93→    93→  onSelect,
+    94→    94→  compact,
+    95→    95→}: {
+    96→    96→  activeProduct: ProductArea;
+    97→    97→  onSelect: (area: ProductArea) => void;
+    98→    98→  compact?: boolean;
+    99→    99→}) {
+   100→   100→  const t = useT();
+   101→   101→  const router = useRouter();
+   102→   102→  const isPlatformAdmin = useAdminStore((s) => s.isPlatformAdmin);
+   103→   103→
+   104→   104→  // Filter product areas: show admin only if user is admin
+   105→   105→  const visibleAreas = React.useMemo(() => {
+   106→   106→    if (isPlatformAdmin) return PRODUCT_AREAS;
+   107→   107→    return PRODUCT_AREAS.filter((a) => a.id !== "admin");
+   108→   108→  }, [isPlatformAdmin]);
+   109→   109→
+   110→   110→  const activeConfig = PRODUCT_AREAS.find((p) => p.id === activeProduct);
+   111→   111→
+   112→   112→  const handleSelect = (area: ProductConfig) => {
+   113→   113→    onSelect(area.id);
+   114→   114→    // Navigate to the default route for that product
+   115→   115→    const defaultRoute = area.id === "admin" ? "/admin" : `/${area.id}/overview`;
+   116→   116→    router.push(defaultRoute);
+   117→   117→  };
+   118→   118→
+   119→   119→  if (compact) {
+   120→   120→    return (
+   121→   121→      <DropdownMenu>
+   122→   122→        <DropdownMenuTrigger asChild>
+   123→   123→          <button
+   124→   124→            className={cn(
+   125→   125→              "grid h-9 w-9 place-items-center rounded-lg transition",
+   126→   126→              "bg-gradient-to-br text-white",
+   127→   127→              activeConfig?.accentFrom,
+   128→   128→              activeConfig?.accentTo
+   129→   129→            )}
+   130→   130→            aria-label="Switch product"
+   131→   131→          >
+   132→   132→            <ArrowRightLeft className="h-4 w-4" />
+   133→   133→          </button>
+   134→   134→        </DropdownMenuTrigger>
+   135→   135→        <DropdownMenuContent align="start" className="w-48">
+   136→   136→          {visibleAreas.map((area) => (
+   137→   137→            <DropdownMenuItem
+   138→   138→              key={area.id}
+   139→   139→              onClick={() => handleSelect(area)}
+   140→   140→              className="gap-2"
+   141→   141→            >
+   142→   142→              <div
+   143→   143→                className={cn(
+   144→   144→                  "grid h-5 w-5 place-items-center rounded text-[10px] font-bold text-white bg-gradient-to-br",
+   145→   145→                  area.accentFrom,
+   146→   146→                  area.accentTo
+   147→   147→                )}
+   148→   148→              >
+   149→   149→                {area.label[0]}
+   150→   150→              </div>
+   151→   151→              <span>{area.tKey ? t(area.tKey) : area.label}</span>
+   152→   152→              {activeProduct === area.id && (
+   153→   153→                <Check className="ml-auto h-3.5 w-3.5" />
+   154→   154→              )}
+   155→   155→            </DropdownMenuItem>
+   156→   156→          ))}
+   157→   157→        </DropdownMenuContent>
+   158→   158→      </DropdownMenu>
+   159→   159→    );
+   160→   160→  }
+   161→   161→
+   162→   162→  return (
+   163→   163→    <DropdownMenu>
+   164→   164→      <DropdownMenuTrigger asChild>
+   165→   165→        <button
+   166→   166→          className={cn(
+   167→   167→            "flex w-full items-center gap-2.5 rounded-lg border border-border/60 bg-card/40 px-2.5 py-2 text-left transition hover:bg-card/70"
+   168→   168→          )}
+   169→   169→        >
+   170→   170→          <div
+   171→   171→            className={cn(
+   172→   172→              "grid h-7 w-7 shrink-0 place-items-center rounded-md bg-gradient-to-br text-[11px] font-semibold text-white",
+   173→   173→              activeConfig?.accentFrom,
+   174→   174→              activeConfig?.accentTo
+   175→   175→            )}
+   176→   176→          >
+   177→   177→            {activeConfig?.label[0] ?? "X"}
+   178→   178→          </div>
+   179→   179→          <div className="min-w-0 flex-1">
+   180→   180→            <p className="truncate text-xs font-medium text-foreground">
+   181→   181→              {activeConfig?.tKey ? t(activeConfig.tKey) : activeConfig?.label}
+   182→   182→            </p>
+   183→   183→            <p className="truncate text-[10px] text-muted-foreground">
+   184→   184→              {t("shell.productArea")}
+   185→   185→            </p>
+   186→   186→          </div>
+   187→   187→          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+   188→   188→        </button>
+   189→   189→      </DropdownMenuTrigger>
+   190→   190→      <DropdownMenuContent align="start" className="w-60">
+   191→   191→        <DropdownMenuLabel className="text-xs text-muted-foreground">
+   192→   192→          {t("shell.switchProduct")}
+   193→   193→        </DropdownMenuLabel>
+   194→   194→        {visibleAreas.map((area) => (
+   195→   195→          <DropdownMenuItem
+   196→   196→            key={area.id}
+   197→   197→            onClick={() => handleSelect(area)}
+   198→   198→            className="gap-2"
+   199→   199→          >
+   200→   200→            <div
+   201→   201→              className={cn(
+   202→   202→                "grid h-6 w-6 place-items-center rounded bg-gradient-to-br text-[10px] font-semibold text-white",
+   203→   203→                area.accentFrom,
+   204→   204→                area.accentTo
+   205→   205→              )}
+   206→   206→            >
+   207→   207→              {area.label[0]}
+   208→   208→            </div>
+   209→   209→            <span className="flex-1">{area.tKey ? t(area.tKey) : area.label}</span>
+   210→   210→            {activeProduct === area.id && (
+   211→   211→              <Check className="ml-auto h-3.5 w-3.5" />
+   212→   212→            )}
+   213→   213→          </DropdownMenuItem>
+   214→   214→        ))}
+   215→   215→      </DropdownMenuContent>
+   216→   216→    </DropdownMenu>
+   217→   217→  );
+   218→   218→}
+   219→   219→
+   220→   220→// ---- Workspace Switcher ----
+   221→   221→
+   222→   222→function WorkspaceSwitcher({ compact }: { compact?: boolean }) {
+   223→   223→  const user = useAuth((s) => s.user);
+   224→   224→  const stores = useWorkspaceStore((s) => s.stores);
+   225→   225→  const selectedStoreId = useWorkspaceStore((s) => s.selectedStoreId);
+   226→   226→  const setSelectedStoreId = useWorkspaceStore((s) => s.setSelectedStoreId);
+   227→   227→  const t = useT();
+   228→   228→
+   229→   229→  const companyName = user?.company ?? user?.name ?? "";
+   230→   230→
+   231→   231→  const selectedStore = React.useMemo(
+   232→   232→    () => stores.find((s) => s.id === selectedStoreId) ?? null,
+   233→   233→    [stores, selectedStoreId]
+   234→   234→  );
+   235→   235→
+   236→   236→  const displayName = selectedStore?.name ?? companyName;
+   237→   237→
+   238→   238→  if (compact) {
+   239→   239→    return (
+   240→   240→      <div className="flex flex-col items-center gap-1 px-1 py-1">
+   241→   241→        <button
+   242→   242→          className={cn(
+   243→   243→            "grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-muted to-muted/40 text-[11px] font-semibold text-muted-foreground transition hover:bg-muted/80"
+   244→   244→          )}
+   245→   245→          title={displayName}
+   246→   246→        >
+   247→   247→          {displayName?.[0] ?? "W"}
+   248→   248→        </button>
+   249→   249→      </div>
+   250→   250→    );
+   251→   251→  }
+   252→   252→
+   253→   253→  return (
+   254→   254→    <DropdownMenu>
+   255→   255→      <DropdownMenuTrigger asChild>
+   256→   256→        <button
+   257→   257→          className="flex w-full items-center gap-2.5 rounded-lg border border-border/60 bg-card/40 px-2.5 py-2 text-left transition hover:bg-card/70"
+   258→   258→        >
+   259→   259→          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-gradient-to-br from-muted to-muted/40 text-[11px] font-semibold text-foreground">
+   260→   260→            {displayName?.[0] ?? "W"}
+   261→   261→          </div>
+   262→   262→          <div className="min-w-0 flex-1">
+   263→   263→            <p className="truncate text-xs font-medium text-foreground">
+   264→   264→              {displayName}
+   265→   265→            </p>
+   266→   266→            <p className="truncate text-[10px] text-muted-foreground">
+   267→   267→              {t("shell.workspace")}
+   268→   268→            </p>
+   269→   269→          </div>
+   270→   270→          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+   271→   271→        </button>
+   272→   272→      </DropdownMenuTrigger>
+   273→   273→      <DropdownMenuContent align="start" className="w-60">
+   274→   274→        <DropdownMenuLabel className="text-xs text-muted-foreground">
+   275→   275→          {t("shell.workspace")}
+   276→   276→        </DropdownMenuLabel>
+   277→   277→        {/* "All Stores" option */}
+   278→   278→        <DropdownMenuItem
+   279→   279→          onClick={() => setSelectedStoreId(null)}
+   280→   280→          className="gap-2"
+   281→   281→        >
+   282→   282→          <div className="mr-1 grid h-6 w-6 place-items-center rounded bg-muted text-[10px] font-semibold text-muted-foreground">
+   283→   283→            <Store className="h-3.5 w-3.5" />
+   284→   284→          </div>
+   285→   285→          <span className="flex-1">{t("shell.allStores")}</span>
+   286→   286→          {!selectedStoreId && <Check className="ml-auto h-3.5 w-3.5" />}
+   287→   287→        </DropdownMenuItem>
+   288→   288→        {stores.length > 0 && <DropdownMenuSeparator />}
+   289→   289→        {stores.map((store) => (
+   290→   290→          <DropdownMenuItem
+   291→   291→            key={store.id}
+   292→   292→            onClick={() => setSelectedStoreId(store.id)}
+   293→   293→            className="gap-2"
+   294→   294→          >
+   295→   295→            <div className="mr-1 grid h-6 w-6 place-items-center rounded bg-muted text-[10px] font-semibold text-muted-foreground">
+   296→   296→              {store.name[0]}
+   297→   297→            </div>
+   298→   298→            <span className="flex-1 truncate">{store.name}</span>
+   299→   299→            {selectedStoreId === store.id && (
+   300→   300→              <Check className="ml-auto h-3.5 w-3.5" />
+   301→   301→            )}
+   302→   302→          </DropdownMenuItem>
+   303→   303→        ))}
+   304→   304→      </DropdownMenuContent>
+   305→   305→    </DropdownMenu>
+   306→   306→  );
+   307→   307→}
+   308→   308→
+   309→   309→// ---- Navigation ----
+   310→   310→
+   311→   311→function NavList({
+   312→   312→  sections,
+   313→   313→  pathname,
+   314→   314→  productConfig,
+   315→   315→  onSelect,
+   316→   316→}: {
+   317→   317→  sections: NavSection[];
+   318→   318→  pathname: string;
+   319→   319→  productConfig: ProductConfig;
+   320→   320→  onSelect: (route: string) => void;
+   321→   321→}) {
+   322→   322→  const t = useT();
+   323→   323→
+   324→   324→  const getIsActive = (item: NavItem) => {
+   325→   325→    if (item.route === "/admin" && pathname === "/admin") return true;
+   326→   326→    if (item.route === "/admin" && pathname.startsWith("/admin/")) return false;
+   327→   327→    return pathname === item.route;
+   328→   328→  };
+   329→   329→
+   330→   330→  return (
+   331→   331→    <nav className="flex flex-col gap-5 px-3 py-4">
+   332→   332→      {sections.map((section) => (
+   333→   333→        <div key={section.id}>
+   334→   334→          <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+   335→   335→            {section.tKey ? t(section.tKey) : section.label}
+   336→   336→          </p>
+   337→   337→          <div className="flex flex-col gap-0.5">
+   338→   338→            {section.items.map((item) => {
+   339→   339→              const isActive = getIsActive(item);
+   340→   340→              return (
+   341→   341→                <button
+   342→   342→                  key={item.id}
+   343→   343→                  onClick={() => onSelect(item.route)}
+   344→   344→                  className={cn(
+   345→   345→                    "group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",
+   346→   346→                    isActive
+   347→   347→                      ? cn(
+   348→   348→                          "bg-primary/12",
+   349→   349→                          productConfig.accentText
+   350→   350→                        )
+   351→   351→                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+   352→   352→                  )}
+   353→   353→                >
+   354→   354→                  {isActive && (
+   355→   355→                    <motion.div
+   356→   356→                      layoutId="nav-active"
+   357→   357→                      className={cn(
+   358→   358→                        "absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full",
+   359→   359→                        productConfig.accentText === "text-emerald-400"
+   360→   360→                          ? "bg-emerald-400"
+   361→   361→                          : productConfig.accentText === "text-amber-400"
+   362→   362→                            ? "bg-amber-400"
+   363→   363→                            : productConfig.accentText === "text-rose-400"
+   364→   364→                              ? "bg-rose-400"
+   365→   365→                              : "bg-primary"
+   366→   366→                      )}
+   367→   367→                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+   368→   368→                    />
+   369→   369→                  )}
+   370→   370→                  <item.icon
+   371→   371→                    className={cn(
+   372→   372→                      "h-4 w-4 shrink-0",
+   373→   373→                      isActive && productConfig.accentText
+   374→   374→                    )}
+   375→   375→                  />
+   376→   376→                  <span className="flex-1 text-left font-medium">
+   377→   377→                    {item.tKey ? t(item.tKey) : item.label}
+   378→   378→                  </span>
+   379→   379→                  {item.badge && (
+   380→   380→                    <Badge
+   381→   381→                      className="h-[18px] min-w-[18px] px-1 text-[10px] font-semibold"
+   382→   382→                      variant="default"
+   383→   383→                    >
+   384→   384→                      {item.badge}
+   385→   385→                    </Badge>
+   386→   386→                  )}
+   387→   387→                </button>
+   388→   388→              );
+   389→   389→            })}
+   390→   390→          </div>
+   391→   391→        </div>
+   392→   392→      ))}
+   393→   393→    </nav>
+   394→   394→  );
+   395→   395→}
+   396→   396→
+   397→   397→// ---- Sidebar Body ----
+   398→   398→
+   399→   399→function SidebarBody({
+   400→   400→  sections,
+   401→   401→  pathname,
+   402→   402→  productConfig,
+   403→   403→  activeProduct,
+   404→   404→  collapsed,
+   405→   405→  onNavSelect,
+   406→   406→  onProductSelect,
+   407→   407→}: {
+   408→   408→  sections: NavSection[];
+   409→   409→  pathname: string;
+   410→   410→  productConfig: ProductConfig;
+   411→   411→  activeProduct: ProductArea;
+   412→   412→  collapsed?: boolean;
+   413→   413→  onNavSelect: (route: string) => void;
+   414→   414→  onProductSelect: (area: ProductArea) => void;
+   415→   415→}) {
+   416→   416→  const user = useAuth((s) => s.user);
+   417→   417→  const t = useT();
+   418→   418→
+   419→   419→  if (collapsed) {
+   420→   420→    return (
+   421→   421→      <div className="flex h-full flex-col items-center gap-2 py-3">
+   422→   422→        <XSymbol className="h-7 w-7 mb-1" />
+   423→   423→        <ProductSwitcher
+   424→   424→          activeProduct={activeProduct}
+   425→   425→          onSelect={onProductSelect}
+   426→   426→          compact
+   427→   427→        />
+   428→   428→        <WorkspaceSwitcher compact />
+   429→   429→        <div className="mx-2 my-1 h-px w-6 bg-border/60" />
+   430→   430→        <div className="scrollbar-thin flex-1 overflow-y-auto">
+   431→   431→          <div className="flex flex-col items-center gap-1 px-1">
+   432→   432→            {sections.flatMap((s) => s.items).map((item) => {
+   433→   433→              const isActive =
+   434→   434→                item.route === "/admin"
+   435→   435→                  ? pathname === "/admin"
+   436→   436→                  : pathname === item.route;
+   437→   437→              return (
+   438→   438→                <button
+   439→   439→                  key={item.id}
+   440→   440→                  onClick={() => onNavSelect(item.route)}
+   441→   441→                  title={item.tKey ? t(item.tKey) : item.label}
+   442→   442→                  className={cn(
+   443→   443→                    "grid h-9 w-9 place-items-center rounded-lg transition",
+   444→   444→                    isActive
+   445→   445→                      ? cn(
+   446→   446→                          "bg-primary/15",
+   447→   447→                          productConfig.accentText
+   448→   448→                        )
+   449→   449→                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+   450→   450→                  )}
+   451→   451→                >
+   452→   452→                  <item.icon className="h-4 w-4" />
+   453→   453→                </button>
+   454→   454→              );
+   455→   455→            })}
+   456→   456→          </div>
+   457→   457→        </div>
+   458→   458→        {user && (
+   459→   459→          <Avatar className="h-8 w-8 border border-border/60">
+   460→   460→            <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary/40 text-xs font-semibold text-white">
+   461→   461→              {initials(user.name)}
+   462→   462→            </AvatarFallback>
+   463→   463→          </Avatar>
+   464→   464→        )}
+   465→   465→      </div>
+   466→   466→    );
+   467→   467→  }
+   468→   468→
+   469→   469→  return (
+   470→   470→    <div className="flex h-full flex-col">
+   471→   471→      <div className="flex h-14 items-center border-b border-border/60 px-4">
+   472→   472→        <Logo />
+   473→   473→      </div>
+   474→   474→      <div className="px-3 pt-3 space-y-2">
+   475→   475→        <ProductSwitcher
+   476→   476→          activeProduct={activeProduct}
+   477→   477→          onSelect={onProductSelect}
+   478→   478→        />
+   479→   479→        <WorkspaceSwitcher />
+   480→   480→      </div>
+   481→   481→      <div className="scrollbar-thin flex-1 overflow-y-auto">
+   482→   482→        <NavList
+   483→   483→          sections={sections}
+   484→   484→          pathname={pathname}
+   485→   485→          productConfig={productConfig}
+   486→   486→          onSelect={onNavSelect}
+   487→   487→        />
+   488→   488→      </div>
+   489→   489→      {user && (
+   490→   490→        <div className="border-t border-border/60 p-3">
+   491→   491→          <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+   492→   492→            <Avatar className="h-8 w-8 border border-border/60">
+   493→   493→              <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary/40 text-xs font-semibold text-white">
+   494→   494→                {initials(user.name)}
+   495→   495→              </AvatarFallback>
+   496→   496→            </Avatar>
+   497→   497→            <div className="min-w-0 flex-1">
+   498→   498→              <p className="truncate text-xs font-medium text-foreground">
+   499→   499→                {user.name}
+   500→   500→              </p>
+   501→   501→              <p className="truncate text-[10px] text-muted-foreground">
+   502→   502→                {user.email}
+   503→   503→              </p>
+   504→   504→            </div>
+   505→   505→          </div>
+   506→   506→        </div>
+   507→   507→      )}
+   508→   508→    </div>
+   509→   509→  );
+   510→   510→}
+   511→   511→
+   512→   512→// ---- Top Bar ----
+   513→   513→
+   514→   514→function TopBar({
+   515→   515→  productConfig,
+   516→   516→  onMenu,
+   517→   517→}: {
+   518→   518→  productConfig: ProductConfig;
+   519→   519→  onMenu: () => void;
+   520→   520→}) {
+   521→   521→  const { theme, setTheme } = useTheme();
+   522→   522→  const user = useAuth((s) => s.user);
+   523→   523→  const logout = useAuth((s) => s.logout);
+   524→   524→  const setCommandOpen = useUi((s) => s.setCommandOpen);
+   525→   525→  const setNotificationsOpen = useUi((s) => s.setNotificationsOpen);
+   526→   526→  const toggleSidebar = useUi((s) => s.toggleSidebar);
+   527→   527→  const t = useT();
+   528→   528→  const [xpiaOpen, setXpiaOpen] = React.useState(false);
+   529→   529→
+   530→   530→  return (
+   531→   531→    <header className="safe-top sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border/60 bg-background/80 px-3 backdrop-blur-xl sm:px-5">
+   532→   532→      <Button
+   533→   533→        variant="ghost"
+   534→   534→        size="icon"
+   535→   535→        className="lg:hidden"
+   536→   536→        onClick={onMenu}
+   537→   537→        aria-label={t("nav.toggleMenu")}
+   538→   538→      >
+   539→   539→        <Menu className="h-5 w-5" />
+   540→   540→      </Button>
+   541→   541→      <Button
+   542→   542→        variant="ghost"
+   543→   543→        size="icon"
+   544→   544→        className="hidden lg:inline-flex"
+   545→   545→        onClick={toggleSidebar}
+   546→   546→        aria-label="Toggle sidebar"
+   547→   547→      >
+   548→   548→        <PanelLeft className="h-[18px] w-[18px]" />
+   549→   549→      </Button>
+   550→   550→
+   551→   551→      <button
+   552→   552→        onClick={() => setCommandOpen(true)}
+   553→   553→        className="group flex h-9 flex-1 items-center gap-2 rounded-lg border border-border/60 bg-card/40 px-3 text-sm text-muted-foreground transition hover:bg-card/70 sm:max-w-md"
+   554→   554→      >
+   555→   555→        <Search className="h-4 w-4" />
+   556→   556→        <span className="flex-1 text-left">{t("common.search")}</span>
+   557→   557→        <kbd className="hidden items-center gap-0.5 rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] sm:flex">
+   558→   558→          <Command className="h-2.5 w-2.5" />K
+   559→   559→        </kbd>
+   560→   560→      </button>
+   561→   561→
+   562→   562→      <div className="ml-auto flex items-center gap-1">
+   563→   563→        <Button
+   564→   564→          variant="ghost"
+   565→   565→          size="sm"
+   566→   566→          className="hidden h-9 px-2 sm:flex"
+   567→   567→          onClick={() =>
+   568→   568→            toast.info(t("shell.liveMode"), {
+   569→   569→              description: t("shell.liveModeDesc"),
+   570→   570→            })
+   571→   571→          }
+   572→   572→        >
+   573→   573→          <span className="flex items-center gap-1 rounded-md bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
+   574→   574→            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />{" "}
+   575→   575→            {t("common.live")}
+   576→   576→          </span>
+   577→   577→        </Button>
+   578→   578→        <Button
+   579→   579→          variant="ghost"
+   580→   580→          size="icon"
+   581→   581→          onClick={() => setXpiaOpen(true)}
+   582→   582→          aria-label="XpIA Assistant"
+   583→   583→          title="Chat with XpIA"
+   584→   584→        >
+   585→   585→          <Sparkles className="h-[18px] w-[18px] text-primary" />
+   586→   586→        </Button>
+   587→   587→        <LanguageSwitcher />
+   588→   588→        <Button
+   589→   589→          variant="ghost"
+   590→   590→          size="icon"
+   591→   591→          onClick={() => setNotificationsOpen(true)}
+   592→   592→          aria-label={t("shell.notifications")}
+   593→   593→        >
+   594→   594→          <Bell className="h-[18px] w-[18px]" />
+   595→   595→        </Button>
+   596→   596→        <Button
+   597→   597→          variant="ghost"
+   598→   598→          size="icon"
+   599→   599→          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+   600→   600→          aria-label="Toggle theme"
+   601→   601→        >
+   602→   602→          {theme === "dark" ? (
+   603→   603→            <Sun className="h-[18px] w-[18px]" />
+   604→   604→          ) : (
+   605→   605→            <Moon className="h-[18px] w-[18px]" />
+   606→   606→          )}
+   607→   607→        </Button>
+   608→   608→        <DropdownMenu>
+   609→   609→          <DropdownMenuTrigger asChild>
+   610→   610→            <button
+   611→   611→              className="ml-1 flex items-center gap-2 rounded-lg p-0.5 transition hover:bg-muted/60"
+   612→   612→              aria-label="Profile menu"
+   613→   613→            >
+   614→   614→              <Avatar className="h-8 w-8 border border-border/60">
+   615→   615→                <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary/40 text-xs font-semibold text-white">
+   616→   616→                  {user ? initials(user.name) : "U"}
+   617→   617→                </AvatarFallback>
+   618→   618→              </Avatar>
+   619→   619→            </button>
+   620→   620→          </DropdownMenuTrigger>
+   621→   621→          <DropdownMenuContent align="end" className="w-56">
+   622→   622→            <DropdownMenuLabel>
+   623→   623→              <div className="flex flex-col">
+   624→   624→                <span className="text-sm font-medium">{user?.name}</span>
+   625→   625→                <span className="text-xs font-normal text-muted-foreground">
+   626→   626→                  {user?.email}
+   627→   627→                </span>
+   628→   628→              </div>
+   629→   629→            </DropdownMenuLabel>
+   630→   630→            <DropdownMenuSeparator />
+   631→   631→            <DropdownMenuItem>
+   632→   632→              <UserIcon className="mr-2 h-4 w-4" /> {t("shell.profile")}
+   633→   633→            </DropdownMenuItem>
+   634→   634→            <DropdownMenuItem>
+   635→   635→              <Settings className="mr-2 h-4 w-4" /> {t("nav.settings")}
+   636→   636→            </DropdownMenuItem>
+   637→   637→            <DropdownMenuItem>
+   638→   638→              <CreditCard className="mr-2 h-4 w-4" /> {t("shell.billing")}
+   639→   639→            </DropdownMenuItem>
+   640→   640→            <DropdownMenuItem>
+   641→   641→              <ShieldCheck className="mr-2 h-4 w-4" /> {t("shell.security")}
+   642→   642→            </DropdownMenuItem>
+   643→   643→            <DropdownMenuItem>
+   644→   644→              <LifeBuoy className="mr-2 h-4 w-4" /> {t("nav.support")}
+   645→   645→            </DropdownMenuItem>
+   646→   646→            <DropdownMenuSeparator />
+   647→   647→            <DropdownMenuItem
+   648→   648→              className="text-rose-400 focus:text-rose-400"
+   649→   649→              onClick={() => {
+   650→   650→                logout();
+   651→   651→                toast.success(t("shell.signedOut"));
+   652→   652→              }}
+   653→   653→            >
+   654→   654→              <LogOut className="mr-2 h-4 w-4" /> {t("shell.signout")}
+   655→   655→            </DropdownMenuItem>
+   656→   656→          </DropdownMenuContent>
+   657→   657→        </DropdownMenu>
+   658→   658→      </div>
+   659→   659→      <XpIAChat open={xpiaOpen} onClose={() => setXpiaOpen(false)} />
+   660→   660→    </header>
+   661→   661→  );
+   662→   662→}
+   663→   663→
+   664→   664→// ---- Command Palette ----
+   665→   665→
+   666→   666→function CommandPalette({
+   667→   667→  sections,
+   668→   668→  pathname,
+   669→   669→  productConfig,
+   670→   670→  onNavSelect,
+   671→   671→}: {
+   672→   672→  sections: NavSection[];
+   673→   673→  pathname: string;
+   674→   674→  productConfig: ProductConfig;
+   675→   675→  onNavSelect: (route: string) => void;
+   676→   676→}) {
+   677→   677→  const commandOpen = useUi((s) => s.commandOpen);
+   678→   678→  const setCommandOpen = useUi((s) => s.setCommandOpen);
+   679→   679→  const t = useT();
+   680→   680→
+   681→   681→  React.useEffect(() => {
+   682→   682→    const handler = (e: KeyboardEvent) => {
+   683→   683→      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+   684→   684→        e.preventDefault();
+   685→   685→        setCommandOpen(true);
+   686→   686→      }
+   687→   687→    };
+   688→   688→    window.addEventListener("keydown", handler);
+   689→   689→    return () => window.removeEventListener("keydown", handler);
+   690→   690→  }, [setCommandOpen]);
+   691→   691→
+   692→   692→  return (
+   693→   693→    <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+   694→   694→      <CommandInput placeholder={t("cmd.placeholder")} />
+   695→   695→      <CommandList>
+   696→   696→        <CommandEmpty>No results found.</CommandEmpty>
+   697→   697→        {sections.map((section) => (
+   698→   698→          <CommandGroup
+   699→   699→            key={section.id}
+   700→   700→            heading={section.tKey ? t(section.tKey) : section.label}
+   701→   701→          >
+   702→   702→            {section.items.map((item) => (
+   703→   703→              <CommandItem
+   704→   704→                key={item.id}
+   705→   705→                onSelect={() => {
+   706→   706→                  onNavSelect(item.route);
+   707→   707→                  setCommandOpen(false);
+   708→   708→                }}
+   709→   709→                className={cn(pathname === item.route && "bg-primary/10")}
+   710→   710→              >
+   711→   711→                <item.icon className="mr-2 h-4 w-4" />
+   712→   712→                {item.tKey ? t(item.tKey) : item.label}
+   713→   713→              </CommandItem>
+   714→   714→            ))}
+   715→   715→          </CommandGroup>
+   716→   716→        ))}
+   717→   717→      </CommandList>
+   718→   718→    </CommandDialog>
+   719→   719→  );
+   720→   720→}
+   721→   721→
+   722→   722→// ---- Notifications Panel (empty state) ----
+   723→   723→
+   724→   724→function NotificationsPanel() {
+   725→   725→  const notificationsOpen = useUi((s) => s.notificationsOpen);
+   726→   726→  const setNotificationsOpen = useUi((s) => s.setNotificationsOpen);
+   727→   727→  const t = useT();
+   728→   728→
+   729→   729→  return (
+   730→   730→    <Sheet open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+   731→   731→      <SheetContent className="w-full border-border/60 bg-background/95 sm:max-w-md">
+   732→   732→        <SheetTitle className="sr-only">Notifications</SheetTitle>
+   733→   733→        <div className="flex h-full flex-col">
+   734→   734→          <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+   735→   735→            <div className="flex items-center gap-2">
+   736→   736→              <Bell className="h-4 w-4" />
+   737→   737→              <h3 className="text-sm font-semibold">
+   738→   738→                {t("shell.notifications")}
+   739→   739→              </h3>
+   740→   740→            </div>
+   741→   741→            <Button
+   742→   742→              variant="ghost"
+   743→   743→              size="icon"
+   744→   744→              onClick={() => setNotificationsOpen(false)}
+   745→   745→            >
+   746→   746→              <X className="h-4 w-4" />
+   747→   747→            </Button>
+   748→   748→          </div>
+   749→   749→          <div className="scrollbar-thin flex-1 overflow-y-auto">
+   750→   750→            <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
+   751→   751→              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50">
+   752→   752→                <Bell className="h-6 w-6 text-muted-foreground/50" />
+   753→   753→              </div>
+   754→   754→              <div>
+   755→   755→                <p className="text-sm font-medium text-muted-foreground">
+   756→   756→                  {t("shell.noNotifications")}
+   757→   757→                </p>
+   758→   758→                <p className="mt-1 text-xs text-muted-foreground/70">
+   759→   759→                  {t("shell.noNotificationsDesc")}
+   760→   760→                </p>
+   761→   761→              </div>
+   762→   762→            </div>
+   763→   763→          </div>
+   764→   764→        </div>
+   765→   765→      </SheetContent>
+   766→   766→    </Sheet>
+   767→   767→  );
+   768→   768→}
+   769→   769→
+   770→   770→// ---- Main Dashboard Shell ----
+   771→   771→
+   772→   772→export function DashboardShell({
+   773→   773→  children,
+   774→   774→}: {
+   775→   775→  children: React.ReactNode;
+   776→   776→}) {
+   777→   777→  const router = useRouter();
+   778→   778→  const pathname = usePathname();
+   779→   779→  const { sidebarCollapsed, sidebarOpen, setSidebarOpen } = useUi();
+   780→   780→
+   781→   781→  // Derive product area from pathname
+   782→   782→  const activeProduct = getProductAreaFromPath(pathname);
+   783→   783→
+   784→   784→  const productConfig = PRODUCT_AREAS.find((p) => p.id === activeProduct) ?? PRODUCT_AREAS[0];
+   785→   785→  const sections = NAV_MAP[activeProduct];
+   786→   786→
+   787→   787→  const handleNavSelect = React.useCallback(
+   788→   788→    (route: string) => {
+   789→   789→      router.push(route);
+   790→   790→      setSidebarOpen(false);
+   791→   791→    },
+   792→   792→    [router, setSidebarOpen]
+   793→   793→  );
+   794→   794→
+   795→   795→  const handleProductSelect = React.useCallback(
+   796→   796→    (_area: ProductArea) => {
+   797→   797→      setSidebarOpen(false);
+   798→   798→      // Navigation is handled inside ProductSwitcher
+   799→   799→    },
+   800→   800→    [setSidebarOpen]
+   801→   801→  );
+   802→   802→
+   803→   803→  return (
+   804→   804→    <div className="flex h-screen overflow-hidden bg-background">
+   805→   805→      {/* Desktop sidebar */}
+   806→   806→      <aside
+   807→   807→        className={cn(
+   808→   808→          "hidden shrink-0 border-r border-border/60 bg-sidebar/50 backdrop-blur-xl transition-[width] duration-200 lg:block",
+   809→   809→          sidebarCollapsed ? "w-16" : "w-64"
+   810→   810→        )}
+   811→   811→      >
+   812→   812→        <SidebarBody
+   813→   813→          sections={sections}
+   814→   814→          pathname={pathname}
+   815→   815→          productConfig={productConfig}
+   816→   816→          activeProduct={activeProduct}
+   817→   817→          collapsed={sidebarCollapsed}
+   818→   818→          onNavSelect={handleNavSelect}
+   819→   819→          onProductSelect={handleProductSelect}
+   820→   820→        />
+   821→   821→      </aside>
+   822→   822→
+   823→   823→      {/* Mobile sidebar */}
+   824→   824→      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+   825→   825→        <SheetContent
+   826→   826→          side="left"
+   827→   827→          className="w-72 border-border/60 bg-sidebar p-0"
+   828→   828→        >
+   829→   829→          <SheetTitle className="sr-only">Navigation</SheetTitle>
+   830→   830→          <SidebarBody
+   831→   831→            sections={sections}
+   832→   832→            pathname={pathname}
+   833→   833→            productConfig={productConfig}
+   834→   834→            activeProduct={activeProduct}
+   835→   835→            onNavSelect={handleNavSelect}
+   836→   836→            onProductSelect={handleProductSelect}
+   837→   837→          />
+   838→   838→        </SheetContent>
+   839→   839→      </Sheet>
+   840→   840→
+   841→   841→      <div className="flex min-w-0 flex-1 flex-col">
+   842→   842→        <TopBar productConfig={productConfig} onMenu={() => setSidebarOpen(true)} />
+   843→   843→        <main className="scrollbar-thin flex-1 overflow-y-auto">
+   844→   844→          <AnimatePresence mode="wait">
+   845→   845→            <motion.div
+   846→   846→              key={pathname}
+   847→   847→              initial={{ opacity: 0, y: 8 }}
+   848→   848→              animate={{ opacity: 1, y: 0 }}
+   849→   849→              exit={{ opacity: 0, y: -4 }}
+   850→   850→              transition={{ duration: 0.25 }}
+   851→   851→              className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8"
+   852→   852→            >
+   853→   853→              {children}
+   854→   854→            </motion.div>
+   855→   855→          </AnimatePresence>
+   856→   856→        </main>
+   857→   857→      </div>
+   858→   858→
+   859→   859→      <CommandPalette
+   860→   860→        sections={sections}
+   861→   861→        pathname={pathname}
+   862→   862→        productConfig={productConfig}
+   863→   863→        onNavSelect={handleNavSelect}
+   864→   864→      />
+   865→   865→      <NotificationsPanel />
+   866→   866→    </div>
+   867→   867→  );
+   868→   868→}

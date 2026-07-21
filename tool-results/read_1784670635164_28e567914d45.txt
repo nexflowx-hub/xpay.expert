@@ -1,0 +1,868 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { motion, AnimatePresence } from "framer-motion";
+     5→import {
+     6→  Search,
+     7→  Bell,
+     8→  Menu,
+     9→  X,
+    10→  ChevronDown,
+    11→  Sun,
+    12→  Moon,
+    13→  LogOut,
+    14→  User as UserIcon,
+    15→  Settings,
+    16→  CreditCard,
+    17→  Command,
+    18→  Sparkles,
+    19→  PanelLeftClose,
+    20→  PanelLeft,
+    21→  LifeBuoy,
+    22→  ShieldCheck,
+    23→  Plus,
+    24→  Store,
+    25→  Check,
+    26→  ArrowRightLeft,
+    27→} from "lucide-react";
+    28→import { useTheme } from "next-themes";
+    29→import { useRouter, usePathname } from "next/navigation";
+    30→import { useAuth } from "@/stores/auth";
+    31→import { useUi } from "@/stores/ui";
+    32→import { useWorkspaceStore } from "@/stores/workspace";
+    33→import { useAdminStore } from "@/stores/admin";
+    34→import { useT } from "@/lib/i18n";
+    35→import {
+    36→  PRODUCT_AREAS,
+    37→  NAV_MAP,
+    38→  getProductAreaFromPath,
+    39→  type NavSection,
+    40→  type NavItem,
+    41→  type ProductArea,
+    42→  type ProductConfig,
+    43→} from "@/config";
+    44→import { cn, initials } from "@/lib/utils";
+    45→import { Button } from "@/components/ui/button";
+    46→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    47→import { Badge } from "@/components/ui/badge";
+    48→import {
+    49→  DropdownMenu,
+    50→  DropdownMenuContent,
+    51→  DropdownMenuItem,
+    52→  DropdownMenuLabel,
+    53→  DropdownMenuSeparator,
+    54→  DropdownMenuTrigger,
+    55→} from "@/components/ui/dropdown-menu";
+    56→import {
+    57→  CommandDialog,
+    58→  CommandInput,
+    59→  CommandList,
+    60→  CommandEmpty,
+    61→  CommandGroup,
+    62→  CommandItem,
+    63→} from "@/components/ui/command";
+    64→import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+    65→import { LanguageSwitcher } from "@/components/shared/language-switcher";
+    66→import { XSymbol } from "@/components/shared/x-symbol";
+    67→import { XpIAChat } from "@/components/shared/xpia-chat";
+    68→import { toast } from "sonner";
+    69→import { APP_NAME } from "@/config";
+    70→
+    71→// ---- Logo ----
+    72→
+    73→function Logo({ compact = false }: { compact?: boolean }) {
+    74→  return (
+    75→    <div className="flex items-center gap-2.5">
+    76→      <XSymbol className="h-8 w-8" />
+    77→      {!compact && (
+    78→        <div className="flex flex-col leading-none">
+    79→          <span className="text-sm font-semibold tracking-tight text-foreground">
+    80→            {APP_NAME}
+    81→          </span>
+    82→          <span className="text-[10px] text-muted-foreground">Payments OS</span>
+    83→        </div>
+    84→      )}
+    85→    </div>
+    86→  );
+    87→}
+    88→
+    89→// ---- Product Switcher ----
+    90→
+    91→function ProductSwitcher({
+    92→  activeProduct,
+    93→  onSelect,
+    94→  compact,
+    95→}: {
+    96→  activeProduct: ProductArea;
+    97→  onSelect: (area: ProductArea) => void;
+    98→  compact?: boolean;
+    99→}) {
+   100→  const t = useT();
+   101→  const router = useRouter();
+   102→  const isPlatformAdmin = useAdminStore((s) => s.isPlatformAdmin);
+   103→
+   104→  // Filter product areas: show admin only if user is admin
+   105→  const visibleAreas = React.useMemo(() => {
+   106→    if (isPlatformAdmin) return PRODUCT_AREAS;
+   107→    return PRODUCT_AREAS.filter((a) => a.id !== "admin");
+   108→  }, [isPlatformAdmin]);
+   109→
+   110→  const activeConfig = PRODUCT_AREAS.find((p) => p.id === activeProduct);
+   111→
+   112→  const handleSelect = (area: ProductConfig) => {
+   113→    onSelect(area.id);
+   114→    // Navigate to the default route for that product
+   115→    const defaultRoute = area.id === "admin" ? "/admin" : `/${area.id}/overview`;
+   116→    router.push(defaultRoute);
+   117→  };
+   118→
+   119→  if (compact) {
+   120→    return (
+   121→      <DropdownMenu>
+   122→        <DropdownMenuTrigger asChild>
+   123→          <button
+   124→            className={cn(
+   125→              "grid h-9 w-9 place-items-center rounded-lg transition",
+   126→              "bg-gradient-to-br text-white",
+   127→              activeConfig?.accentFrom,
+   128→              activeConfig?.accentTo
+   129→            )}
+   130→            aria-label="Switch product"
+   131→          >
+   132→            <ArrowRightLeft className="h-4 w-4" />
+   133→          </button>
+   134→        </DropdownMenuTrigger>
+   135→        <DropdownMenuContent align="start" className="w-48">
+   136→          {visibleAreas.map((area) => (
+   137→            <DropdownMenuItem
+   138→              key={area.id}
+   139→              onClick={() => handleSelect(area)}
+   140→              className="gap-2"
+   141→            >
+   142→              <div
+   143→                className={cn(
+   144→                  "grid h-5 w-5 place-items-center rounded text-[10px] font-bold text-white bg-gradient-to-br",
+   145→                  area.accentFrom,
+   146→                  area.accentTo
+   147→                )}
+   148→              >
+   149→                {area.label[0]}
+   150→              </div>
+   151→              <span>{area.tKey ? t(area.tKey) : area.label}</span>
+   152→              {activeProduct === area.id && (
+   153→                <Check className="ml-auto h-3.5 w-3.5" />
+   154→              )}
+   155→            </DropdownMenuItem>
+   156→          ))}
+   157→        </DropdownMenuContent>
+   158→      </DropdownMenu>
+   159→    );
+   160→  }
+   161→
+   162→  return (
+   163→    <DropdownMenu>
+   164→      <DropdownMenuTrigger asChild>
+   165→        <button
+   166→          className={cn(
+   167→            "flex w-full items-center gap-2.5 rounded-lg border border-border/60 bg-card/40 px-2.5 py-2 text-left transition hover:bg-card/70"
+   168→          )}
+   169→        >
+   170→          <div
+   171→            className={cn(
+   172→              "grid h-7 w-7 shrink-0 place-items-center rounded-md bg-gradient-to-br text-[11px] font-semibold text-white",
+   173→              activeConfig?.accentFrom,
+   174→              activeConfig?.accentTo
+   175→            )}
+   176→          >
+   177→            {activeConfig?.label[0] ?? "X"}
+   178→          </div>
+   179→          <div className="min-w-0 flex-1">
+   180→            <p className="truncate text-xs font-medium text-foreground">
+   181→              {activeConfig?.tKey ? t(activeConfig.tKey) : activeConfig?.label}
+   182→            </p>
+   183→            <p className="truncate text-[10px] text-muted-foreground">
+   184→              {t("shell.productArea")}
+   185→            </p>
+   186→          </div>
+   187→          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+   188→        </button>
+   189→      </DropdownMenuTrigger>
+   190→      <DropdownMenuContent align="start" className="w-60">
+   191→        <DropdownMenuLabel className="text-xs text-muted-foreground">
+   192→          {t("shell.switchProduct")}
+   193→        </DropdownMenuLabel>
+   194→        {visibleAreas.map((area) => (
+   195→          <DropdownMenuItem
+   196→            key={area.id}
+   197→            onClick={() => handleSelect(area)}
+   198→            className="gap-2"
+   199→          >
+   200→            <div
+   201→              className={cn(
+   202→                "grid h-6 w-6 place-items-center rounded bg-gradient-to-br text-[10px] font-semibold text-white",
+   203→                area.accentFrom,
+   204→                area.accentTo
+   205→              )}
+   206→            >
+   207→              {area.label[0]}
+   208→            </div>
+   209→            <span className="flex-1">{area.tKey ? t(area.tKey) : area.label}</span>
+   210→            {activeProduct === area.id && (
+   211→              <Check className="ml-auto h-3.5 w-3.5" />
+   212→            )}
+   213→          </DropdownMenuItem>
+   214→        ))}
+   215→      </DropdownMenuContent>
+   216→    </DropdownMenu>
+   217→  );
+   218→}
+   219→
+   220→// ---- Workspace Switcher ----
+   221→
+   222→function WorkspaceSwitcher({ compact }: { compact?: boolean }) {
+   223→  const user = useAuth((s) => s.user);
+   224→  const stores = useWorkspaceStore((s) => s.stores);
+   225→  const selectedStoreId = useWorkspaceStore((s) => s.selectedStoreId);
+   226→  const setSelectedStoreId = useWorkspaceStore((s) => s.setSelectedStoreId);
+   227→  const t = useT();
+   228→
+   229→  const companyName = user?.company ?? user?.name ?? "";
+   230→
+   231→  const selectedStore = React.useMemo(
+   232→    () => stores.find((s) => s.id === selectedStoreId) ?? null,
+   233→    [stores, selectedStoreId]
+   234→  );
+   235→
+   236→  const displayName = selectedStore?.name ?? companyName;
+   237→
+   238→  if (compact) {
+   239→    return (
+   240→      <div className="flex flex-col items-center gap-1 px-1 py-1">
+   241→        <button
+   242→          className={cn(
+   243→            "grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-muted to-muted/40 text-[11px] font-semibold text-muted-foreground transition hover:bg-muted/80"
+   244→          )}
+   245→          title={displayName}
+   246→        >
+   247→          {displayName?.[0] ?? "W"}
+   248→        </button>
+   249→      </div>
+   250→    );
+   251→  }
+   252→
+   253→  return (
+   254→    <DropdownMenu>
+   255→      <DropdownMenuTrigger asChild>
+   256→        <button
+   257→          className="flex w-full items-center gap-2.5 rounded-lg border border-border/60 bg-card/40 px-2.5 py-2 text-left transition hover:bg-card/70"
+   258→        >
+   259→          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-gradient-to-br from-muted to-muted/40 text-[11px] font-semibold text-foreground">
+   260→            {displayName?.[0] ?? "W"}
+   261→          </div>
+   262→          <div className="min-w-0 flex-1">
+   263→            <p className="truncate text-xs font-medium text-foreground">
+   264→              {displayName}
+   265→            </p>
+   266→            <p className="truncate text-[10px] text-muted-foreground">
+   267→              {t("shell.workspace")}
+   268→            </p>
+   269→          </div>
+   270→          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+   271→        </button>
+   272→      </DropdownMenuTrigger>
+   273→      <DropdownMenuContent align="start" className="w-60">
+   274→        <DropdownMenuLabel className="text-xs text-muted-foreground">
+   275→          {t("shell.workspace")}
+   276→        </DropdownMenuLabel>
+   277→        {/* "All Stores" option */}
+   278→        <DropdownMenuItem
+   279→          onClick={() => setSelectedStoreId(null)}
+   280→          className="gap-2"
+   281→        >
+   282→          <div className="mr-1 grid h-6 w-6 place-items-center rounded bg-muted text-[10px] font-semibold text-muted-foreground">
+   283→            <Store className="h-3.5 w-3.5" />
+   284→          </div>
+   285→          <span className="flex-1">{t("shell.allStores")}</span>
+   286→          {!selectedStoreId && <Check className="ml-auto h-3.5 w-3.5" />}
+   287→        </DropdownMenuItem>
+   288→        {stores.length > 0 && <DropdownMenuSeparator />}
+   289→        {stores.map((store) => (
+   290→          <DropdownMenuItem
+   291→            key={store.id}
+   292→            onClick={() => setSelectedStoreId(store.id)}
+   293→            className="gap-2"
+   294→          >
+   295→            <div className="mr-1 grid h-6 w-6 place-items-center rounded bg-muted text-[10px] font-semibold text-muted-foreground">
+   296→              {store.name[0]}
+   297→            </div>
+   298→            <span className="flex-1 truncate">{store.name}</span>
+   299→            {selectedStoreId === store.id && (
+   300→              <Check className="ml-auto h-3.5 w-3.5" />
+   301→            )}
+   302→          </DropdownMenuItem>
+   303→        ))}
+   304→      </DropdownMenuContent>
+   305→    </DropdownMenu>
+   306→  );
+   307→}
+   308→
+   309→// ---- Navigation ----
+   310→
+   311→function NavList({
+   312→  sections,
+   313→  pathname,
+   314→  productConfig,
+   315→  onSelect,
+   316→}: {
+   317→  sections: NavSection[];
+   318→  pathname: string;
+   319→  productConfig: ProductConfig;
+   320→  onSelect: (route: string) => void;
+   321→}) {
+   322→  const t = useT();
+   323→
+   324→  const getIsActive = (item: NavItem) => {
+   325→    if (item.route === "/admin" && pathname === "/admin") return true;
+   326→    if (item.route === "/admin" && pathname.startsWith("/admin/")) return false;
+   327→    return pathname === item.route;
+   328→  };
+   329→
+   330→  return (
+   331→    <nav className="flex flex-col gap-5 px-3 py-4">
+   332→      {sections.map((section) => (
+   333→        <div key={section.id}>
+   334→          <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+   335→            {section.tKey ? t(section.tKey) : section.label}
+   336→          </p>
+   337→          <div className="flex flex-col gap-0.5">
+   338→            {section.items.map((item) => {
+   339→              const isActive = getIsActive(item);
+   340→              return (
+   341→                <button
+   342→                  key={item.id}
+   343→                  onClick={() => onSelect(item.route)}
+   344→                  className={cn(
+   345→                    "group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",
+   346→                    isActive
+   347→                      ? cn(
+   348→                          "bg-primary/12",
+   349→                          productConfig.accentText
+   350→                        )
+   351→                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+   352→                  )}
+   353→                >
+   354→                  {isActive && (
+   355→                    <motion.div
+   356→                      layoutId="nav-active"
+   357→                      className={cn(
+   358→                        "absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full",
+   359→                        productConfig.accentText === "text-emerald-400"
+   360→                          ? "bg-emerald-400"
+   361→                          : productConfig.accentText === "text-amber-400"
+   362→                            ? "bg-amber-400"
+   363→                            : productConfig.accentText === "text-rose-400"
+   364→                              ? "bg-rose-400"
+   365→                              : "bg-primary"
+   366→                      )}
+   367→                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+   368→                    />
+   369→                  )}
+   370→                  <item.icon
+   371→                    className={cn(
+   372→                      "h-4 w-4 shrink-0",
+   373→                      isActive && productConfig.accentText
+   374→                    )}
+   375→                  />
+   376→                  <span className="flex-1 text-left font-medium">
+   377→                    {item.tKey ? t(item.tKey) : item.label}
+   378→                  </span>
+   379→                  {item.badge && (
+   380→                    <Badge
+   381→                      className="h-[18px] min-w-[18px] px-1 text-[10px] font-semibold"
+   382→                      variant="default"
+   383→                    >
+   384→                      {item.badge}
+   385→                    </Badge>
+   386→                  )}
+   387→                </button>
+   388→              );
+   389→            })}
+   390→          </div>
+   391→        </div>
+   392→      ))}
+   393→    </nav>
+   394→  );
+   395→}
+   396→
+   397→// ---- Sidebar Body ----
+   398→
+   399→function SidebarBody({
+   400→  sections,
+   401→  pathname,
+   402→  productConfig,
+   403→  activeProduct,
+   404→  collapsed,
+   405→  onNavSelect,
+   406→  onProductSelect,
+   407→}: {
+   408→  sections: NavSection[];
+   409→  pathname: string;
+   410→  productConfig: ProductConfig;
+   411→  activeProduct: ProductArea;
+   412→  collapsed?: boolean;
+   413→  onNavSelect: (route: string) => void;
+   414→  onProductSelect: (area: ProductArea) => void;
+   415→}) {
+   416→  const user = useAuth((s) => s.user);
+   417→  const t = useT();
+   418→
+   419→  if (collapsed) {
+   420→    return (
+   421→      <div className="flex h-full flex-col items-center gap-2 py-3">
+   422→        <XSymbol className="h-7 w-7 mb-1" />
+   423→        <ProductSwitcher
+   424→          activeProduct={activeProduct}
+   425→          onSelect={onProductSelect}
+   426→          compact
+   427→        />
+   428→        <WorkspaceSwitcher compact />
+   429→        <div className="mx-2 my-1 h-px w-6 bg-border/60" />
+   430→        <div className="scrollbar-thin flex-1 overflow-y-auto">
+   431→          <div className="flex flex-col items-center gap-1 px-1">
+   432→            {sections.flatMap((s) => s.items).map((item) => {
+   433→              const isActive =
+   434→                item.route === "/admin"
+   435→                  ? pathname === "/admin"
+   436→                  : pathname === item.route;
+   437→              return (
+   438→                <button
+   439→                  key={item.id}
+   440→                  onClick={() => onNavSelect(item.route)}
+   441→                  title={item.tKey ? t(item.tKey) : item.label}
+   442→                  className={cn(
+   443→                    "grid h-9 w-9 place-items-center rounded-lg transition",
+   444→                    isActive
+   445→                      ? cn(
+   446→                          "bg-primary/15",
+   447→                          productConfig.accentText
+   448→                        )
+   449→                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+   450→                  )}
+   451→                >
+   452→                  <item.icon className="h-4 w-4" />
+   453→                </button>
+   454→              );
+   455→            })}
+   456→          </div>
+   457→        </div>
+   458→        {user && (
+   459→          <Avatar className="h-8 w-8 border border-border/60">
+   460→            <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary/40 text-xs font-semibold text-white">
+   461→              {initials(user.name)}
+   462→            </AvatarFallback>
+   463→          </Avatar>
+   464→        )}
+   465→      </div>
+   466→    );
+   467→  }
+   468→
+   469→  return (
+   470→    <div className="flex h-full flex-col">
+   471→      <div className="flex h-14 items-center border-b border-border/60 px-4">
+   472→        <Logo />
+   473→      </div>
+   474→      <div className="px-3 pt-3 space-y-2">
+   475→        <ProductSwitcher
+   476→          activeProduct={activeProduct}
+   477→          onSelect={onProductSelect}
+   478→        />
+   479→        <WorkspaceSwitcher />
+   480→      </div>
+   481→      <div className="scrollbar-thin flex-1 overflow-y-auto">
+   482→        <NavList
+   483→          sections={sections}
+   484→          pathname={pathname}
+   485→          productConfig={productConfig}
+   486→          onSelect={onNavSelect}
+   487→        />
+   488→      </div>
+   489→      {user && (
+   490→        <div className="border-t border-border/60 p-3">
+   491→          <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+   492→            <Avatar className="h-8 w-8 border border-border/60">
+   493→              <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary/40 text-xs font-semibold text-white">
+   494→                {initials(user.name)}
+   495→              </AvatarFallback>
+   496→            </Avatar>
+   497→            <div className="min-w-0 flex-1">
+   498→              <p className="truncate text-xs font-medium text-foreground">
+   499→                {user.name}
+   500→              </p>
+   501→              <p className="truncate text-[10px] text-muted-foreground">
+   502→                {user.email}
+   503→              </p>
+   504→            </div>
+   505→          </div>
+   506→        </div>
+   507→      )}
+   508→    </div>
+   509→  );
+   510→}
+   511→
+   512→// ---- Top Bar ----
+   513→
+   514→function TopBar({
+   515→  productConfig,
+   516→  onMenu,
+   517→}: {
+   518→  productConfig: ProductConfig;
+   519→  onMenu: () => void;
+   520→}) {
+   521→  const { theme, setTheme } = useTheme();
+   522→  const user = useAuth((s) => s.user);
+   523→  const logout = useAuth((s) => s.logout);
+   524→  const setCommandOpen = useUi((s) => s.setCommandOpen);
+   525→  const setNotificationsOpen = useUi((s) => s.setNotificationsOpen);
+   526→  const toggleSidebar = useUi((s) => s.toggleSidebar);
+   527→  const t = useT();
+   528→  const [xpiaOpen, setXpiaOpen] = React.useState(false);
+   529→
+   530→  return (
+   531→    <header className="safe-top sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border/60 bg-background/80 px-3 backdrop-blur-xl sm:px-5">
+   532→      <Button
+   533→        variant="ghost"
+   534→        size="icon"
+   535→        className="lg:hidden"
+   536→        onClick={onMenu}
+   537→        aria-label={t("nav.toggleMenu")}
+   538→      >
+   539→        <Menu className="h-5 w-5" />
+   540→      </Button>
+   541→      <Button
+   542→        variant="ghost"
+   543→        size="icon"
+   544→        className="hidden lg:inline-flex"
+   545→        onClick={toggleSidebar}
+   546→        aria-label="Toggle sidebar"
+   547→      >
+   548→        <PanelLeft className="h-[18px] w-[18px]" />
+   549→      </Button>
+   550→
+   551→      <button
+   552→        onClick={() => setCommandOpen(true)}
+   553→        className="group flex h-9 flex-1 items-center gap-2 rounded-lg border border-border/60 bg-card/40 px-3 text-sm text-muted-foreground transition hover:bg-card/70 sm:max-w-md"
+   554→      >
+   555→        <Search className="h-4 w-4" />
+   556→        <span className="flex-1 text-left">{t("common.search")}</span>
+   557→        <kbd className="hidden items-center gap-0.5 rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] sm:flex">
+   558→          <Command className="h-2.5 w-2.5" />K
+   559→        </kbd>
+   560→      </button>
+   561→
+   562→      <div className="ml-auto flex items-center gap-1">
+   563→        <Button
+   564→          variant="ghost"
+   565→          size="sm"
+   566→          className="hidden h-9 px-2 sm:flex"
+   567→          onClick={() =>
+   568→            toast.info(t("shell.liveMode"), {
+   569→              description: t("shell.liveModeDesc"),
+   570→            })
+   571→          }
+   572→        >
+   573→          <span className="flex items-center gap-1 rounded-md bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
+   574→            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />{" "}
+   575→            {t("common.live")}
+   576→          </span>
+   577→        </Button>
+   578→        <Button
+   579→          variant="ghost"
+   580→          size="icon"
+   581→          onClick={() => setXpiaOpen(true)}
+   582→          aria-label="XpIA Assistant"
+   583→          title="Chat with XpIA"
+   584→        >
+   585→          <Sparkles className="h-[18px] w-[18px] text-primary" />
+   586→        </Button>
+   587→        <LanguageSwitcher />
+   588→        <Button
+   589→          variant="ghost"
+   590→          size="icon"
+   591→          onClick={() => setNotificationsOpen(true)}
+   592→          aria-label={t("shell.notifications")}
+   593→        >
+   594→          <Bell className="h-[18px] w-[18px]" />
+   595→        </Button>
+   596→        <Button
+   597→          variant="ghost"
+   598→          size="icon"
+   599→          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+   600→          aria-label="Toggle theme"
+   601→        >
+   602→          {theme === "dark" ? (
+   603→            <Sun className="h-[18px] w-[18px]" />
+   604→          ) : (
+   605→            <Moon className="h-[18px] w-[18px]" />
+   606→          )}
+   607→        </Button>
+   608→        <DropdownMenu>
+   609→          <DropdownMenuTrigger asChild>
+   610→            <button
+   611→              className="ml-1 flex items-center gap-2 rounded-lg p-0.5 transition hover:bg-muted/60"
+   612→              aria-label="Profile menu"
+   613→            >
+   614→              <Avatar className="h-8 w-8 border border-border/60">
+   615→                <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary/40 text-xs font-semibold text-white">
+   616→                  {user ? initials(user.name) : "U"}
+   617→                </AvatarFallback>
+   618→              </Avatar>
+   619→            </button>
+   620→          </DropdownMenuTrigger>
+   621→          <DropdownMenuContent align="end" className="w-56">
+   622→            <DropdownMenuLabel>
+   623→              <div className="flex flex-col">
+   624→                <span className="text-sm font-medium">{user?.name}</span>
+   625→                <span className="text-xs font-normal text-muted-foreground">
+   626→                  {user?.email}
+   627→                </span>
+   628→              </div>
+   629→            </DropdownMenuLabel>
+   630→            <DropdownMenuSeparator />
+   631→            <DropdownMenuItem>
+   632→              <UserIcon className="mr-2 h-4 w-4" /> {t("shell.profile")}
+   633→            </DropdownMenuItem>
+   634→            <DropdownMenuItem>
+   635→              <Settings className="mr-2 h-4 w-4" /> {t("nav.settings")}
+   636→            </DropdownMenuItem>
+   637→            <DropdownMenuItem>
+   638→              <CreditCard className="mr-2 h-4 w-4" /> {t("shell.billing")}
+   639→            </DropdownMenuItem>
+   640→            <DropdownMenuItem>
+   641→              <ShieldCheck className="mr-2 h-4 w-4" /> {t("shell.security")}
+   642→            </DropdownMenuItem>
+   643→            <DropdownMenuItem>
+   644→              <LifeBuoy className="mr-2 h-4 w-4" /> {t("nav.support")}
+   645→            </DropdownMenuItem>
+   646→            <DropdownMenuSeparator />
+   647→            <DropdownMenuItem
+   648→              className="text-rose-400 focus:text-rose-400"
+   649→              onClick={() => {
+   650→                logout();
+   651→                toast.success(t("shell.signedOut"));
+   652→              }}
+   653→            >
+   654→              <LogOut className="mr-2 h-4 w-4" /> {t("shell.signout")}
+   655→            </DropdownMenuItem>
+   656→          </DropdownMenuContent>
+   657→        </DropdownMenu>
+   658→      </div>
+   659→      <XpIAChat open={xpiaOpen} onClose={() => setXpiaOpen(false)} />
+   660→    </header>
+   661→  );
+   662→}
+   663→
+   664→// ---- Command Palette ----
+   665→
+   666→function CommandPalette({
+   667→  sections,
+   668→  pathname,
+   669→  productConfig,
+   670→  onNavSelect,
+   671→}: {
+   672→  sections: NavSection[];
+   673→  pathname: string;
+   674→  productConfig: ProductConfig;
+   675→  onNavSelect: (route: string) => void;
+   676→}) {
+   677→  const commandOpen = useUi((s) => s.commandOpen);
+   678→  const setCommandOpen = useUi((s) => s.setCommandOpen);
+   679→  const t = useT();
+   680→
+   681→  React.useEffect(() => {
+   682→    const handler = (e: KeyboardEvent) => {
+   683→      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+   684→        e.preventDefault();
+   685→        setCommandOpen(true);
+   686→      }
+   687→    };
+   688→    window.addEventListener("keydown", handler);
+   689→    return () => window.removeEventListener("keydown", handler);
+   690→  }, [setCommandOpen]);
+   691→
+   692→  return (
+   693→    <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+   694→      <CommandInput placeholder={t("cmd.placeholder")} />
+   695→      <CommandList>
+   696→        <CommandEmpty>No results found.</CommandEmpty>
+   697→        {sections.map((section) => (
+   698→          <CommandGroup
+   699→            key={section.id}
+   700→            heading={section.tKey ? t(section.tKey) : section.label}
+   701→          >
+   702→            {section.items.map((item) => (
+   703→              <CommandItem
+   704→                key={item.id}
+   705→                onSelect={() => {
+   706→                  onNavSelect(item.route);
+   707→                  setCommandOpen(false);
+   708→                }}
+   709→                className={cn(pathname === item.route && "bg-primary/10")}
+   710→              >
+   711→                <item.icon className="mr-2 h-4 w-4" />
+   712→                {item.tKey ? t(item.tKey) : item.label}
+   713→              </CommandItem>
+   714→            ))}
+   715→          </CommandGroup>
+   716→        ))}
+   717→      </CommandList>
+   718→    </CommandDialog>
+   719→  );
+   720→}
+   721→
+   722→// ---- Notifications Panel (empty state) ----
+   723→
+   724→function NotificationsPanel() {
+   725→  const notificationsOpen = useUi((s) => s.notificationsOpen);
+   726→  const setNotificationsOpen = useUi((s) => s.setNotificationsOpen);
+   727→  const t = useT();
+   728→
+   729→  return (
+   730→    <Sheet open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+   731→      <SheetContent className="w-full border-border/60 bg-background/95 sm:max-w-md">
+   732→        <SheetTitle className="sr-only">Notifications</SheetTitle>
+   733→        <div className="flex h-full flex-col">
+   734→          <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+   735→            <div className="flex items-center gap-2">
+   736→              <Bell className="h-4 w-4" />
+   737→              <h3 className="text-sm font-semibold">
+   738→                {t("shell.notifications")}
+   739→              </h3>
+   740→            </div>
+   741→            <Button
+   742→              variant="ghost"
+   743→              size="icon"
+   744→              onClick={() => setNotificationsOpen(false)}
+   745→            >
+   746→              <X className="h-4 w-4" />
+   747→            </Button>
+   748→          </div>
+   749→          <div className="scrollbar-thin flex-1 overflow-y-auto">
+   750→            <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
+   751→              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50">
+   752→                <Bell className="h-6 w-6 text-muted-foreground/50" />
+   753→              </div>
+   754→              <div>
+   755→                <p className="text-sm font-medium text-muted-foreground">
+   756→                  {t("shell.noNotifications")}
+   757→                </p>
+   758→                <p className="mt-1 text-xs text-muted-foreground/70">
+   759→                  {t("shell.noNotificationsDesc")}
+   760→                </p>
+   761→              </div>
+   762→            </div>
+   763→          </div>
+   764→        </div>
+   765→      </SheetContent>
+   766→    </Sheet>
+   767→  );
+   768→}
+   769→
+   770→// ---- Main Dashboard Shell ----
+   771→
+   772→export function DashboardShell({
+   773→  children,
+   774→}: {
+   775→  children: React.ReactNode;
+   776→}) {
+   777→  const router = useRouter();
+   778→  const pathname = usePathname();
+   779→  const { sidebarCollapsed, sidebarOpen, setSidebarOpen } = useUi();
+   780→
+   781→  // Derive product area from pathname
+   782→  const activeProduct = getProductAreaFromPath(pathname);
+   783→
+   784→  const productConfig = PRODUCT_AREAS.find((p) => p.id === activeProduct) ?? PRODUCT_AREAS[0];
+   785→  const sections = NAV_MAP[activeProduct];
+   786→
+   787→  const handleNavSelect = React.useCallback(
+   788→    (route: string) => {
+   789→      router.push(route);
+   790→      setSidebarOpen(false);
+   791→    },
+   792→    [router, setSidebarOpen]
+   793→  );
+   794→
+   795→  const handleProductSelect = React.useCallback(
+   796→    (_area: ProductArea) => {
+   797→      setSidebarOpen(false);
+   798→      // Navigation is handled inside ProductSwitcher
+   799→    },
+   800→    [setSidebarOpen]
+   801→  );
+   802→
+   803→  return (
+   804→    <div className="flex h-screen overflow-hidden bg-background">
+   805→      {/* Desktop sidebar */}
+   806→      <aside
+   807→        className={cn(
+   808→          "hidden shrink-0 border-r border-border/60 bg-sidebar/50 backdrop-blur-xl transition-[width] duration-200 lg:block",
+   809→          sidebarCollapsed ? "w-16" : "w-64"
+   810→        )}
+   811→      >
+   812→        <SidebarBody
+   813→          sections={sections}
+   814→          pathname={pathname}
+   815→          productConfig={productConfig}
+   816→          activeProduct={activeProduct}
+   817→          collapsed={sidebarCollapsed}
+   818→          onNavSelect={handleNavSelect}
+   819→          onProductSelect={handleProductSelect}
+   820→        />
+   821→      </aside>
+   822→
+   823→      {/* Mobile sidebar */}
+   824→      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+   825→        <SheetContent
+   826→          side="left"
+   827→          className="w-72 border-border/60 bg-sidebar p-0"
+   828→        >
+   829→          <SheetTitle className="sr-only">Navigation</SheetTitle>
+   830→          <SidebarBody
+   831→            sections={sections}
+   832→            pathname={pathname}
+   833→            productConfig={productConfig}
+   834→            activeProduct={activeProduct}
+   835→            onNavSelect={handleNavSelect}
+   836→            onProductSelect={handleProductSelect}
+   837→          />
+   838→        </SheetContent>
+   839→      </Sheet>
+   840→
+   841→      <div className="flex min-w-0 flex-1 flex-col">
+   842→        <TopBar productConfig={productConfig} onMenu={() => setSidebarOpen(true)} />
+   843→        <main className="scrollbar-thin flex-1 overflow-y-auto">
+   844→          <AnimatePresence mode="wait">
+   845→            <motion.div
+   846→              key={pathname}
+   847→              initial={{ opacity: 0, y: 8 }}
+   848→              animate={{ opacity: 1, y: 0 }}
+   849→              exit={{ opacity: 0, y: -4 }}
+   850→              transition={{ duration: 0.25 }}
+   851→              className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8"
+   852→            >
+   853→              {children}
+   854→            </motion.div>
+   855→          </AnimatePresence>
+   856→        </main>
+   857→      </div>
+   858→
+   859→      <CommandPalette
+   860→        sections={sections}
+   861→        pathname={pathname}
+   862→        productConfig={productConfig}
+   863→        onNavSelect={handleNavSelect}
+   864→      />
+   865→      <NotificationsPanel />
+   866→    </div>
+   867→  );
+   868→}

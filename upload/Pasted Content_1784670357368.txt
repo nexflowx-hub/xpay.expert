@@ -1,0 +1,2713 @@
+# XPAY.EXPERT — PHASE 3/4 FRONTEND INTEGRATION MASTER PROMPT
+
+Atua como **Lead Frontend Engineer, Product Architect e Integration Engineer** do XPAY.Expert.
+
+A missão é transformar o frontend atual numa aplicação operacional ligada integralmente ao backend real do XPAY.Expert, cobrindo:
+
+1. autenticação;
+2. sessão e permissões;
+3. Merchant Commerce;
+4. Payments e Transactions;
+5. Stores;
+6. Merchant Settlement Wallets;
+7. Settlements;
+8. Merchant Payouts;
+9. Developers;
+10. Platform Admin;
+11. Operations Desk;
+12. Banking Private Beta;
+13. Advisory/Consultoria;
+14. tratamento de erros, segurança, estados e responsividade.
+
+Não reescrevas a aplicação do zero. Evolui a base existente e preserva o design system, componentes reutilizáveis, React Query, Zustand, Next.js App Router, API clients e autenticação já construídos.
+
+---
+
+# 1. REPOSITÓRIO E AMBIENTE
+
+Repositório frontend:
+
+```text
+https://github.com/nexflowx-hub/xpay.expert.git
+```
+
+Branch principal:
+
+```text
+main
+```
+
+Commit-base conhecido da Phase 2:
+
+```text
+279f6a5f0df0d386a2a35985541e32dff3b3b048
+```
+
+Frontend:
+
+```text
+https://xpay.expert
+```
+
+Backend real:
+
+```text
+https://api.xpay.expert
+```
+
+Base URL privada e pública da API:
+
+```text
+https://api.xpay.expert/api/v1
+```
+
+Ambiente atual:
+
+```text
+pilot
+```
+
+Versão backend atual:
+
+```text
+4.0.0-lab
+```
+
+O objetivo desta entrega é preparar o frontend para o backend evoluir para:
+
+```text
+4.0.0-pilot
+```
+
+---
+
+# 2. REGRAS ABSOLUTAS
+
+## 2.1. Não utilizar mocks
+
+É proibido:
+
+* criar arrays hardcoded que representem Merchants, Stores, Wallets, Payouts, Transactions ou Settlements;
+* utilizar `setTimeout` para simular chamadas;
+* criar rotas Next.js locais que imitem o backend;
+* mostrar KPIs inventados;
+* mostrar notificações fictícias;
+* criar saldos bancários fictícios;
+* criar Cases de consultoria fictícios;
+* assumir sucesso financeiro antes da resposta do backend.
+
+Quando não existir API real:
+
+* mostrar empty state;
+* mostrar “Coming Soon”;
+* esconder a ação através de feature flag;
+* documentar a limitação no relatório final.
+
+## 2.2. O backend é a autoridade
+
+O frontend nunca deve decidir por conta própria:
+
+* se um utilizador é Admin;
+* se um Merchant pode solicitar Payout;
+* se o KYC é suficiente;
+* se um saldo está disponível;
+* se uma transição de estado é válida;
+* se um Settlement pode ser libertado;
+* se um Payout pode ser marcado como pago.
+
+A interface pode esconder ações inválidas, mas o backend permanece a autoridade final.
+
+## 2.3. Não alterar contratos silenciosamente
+
+Quando a resposta real da API divergir do tipo TypeScript existente:
+
+1. registar a resposta real;
+2. adaptar o tipo;
+3. adaptar o mapper;
+4. documentar a divergência;
+5. não mascarar o problema usando `any`.
+
+---
+
+# 3. ARQUITETURA DO CLIENTE HTTP
+
+Manter dois clientes:
+
+```text
+src/lib/api/public-client.ts
+src/lib/api/private-client.ts
+```
+
+## Public client
+
+Usado para:
+
+* login;
+* register;
+* checkout público;
+* health quando necessário.
+
+Não enviar JWT.
+
+## Private client
+
+Usado para:
+
+* Merchant;
+* Platform;
+* Wallets;
+* Settlements;
+* Payouts;
+* Admin;
+* Developers;
+* Analytics;
+* Risk;
+* Treasury.
+
+Enviar:
+
+```http
+Authorization: Bearer <accessToken>
+```
+
+Não existe refresh token nesta versão.
+
+Remover completamente:
+
+* `refreshToken`;
+* refresh interceptor;
+* refresh storage;
+* refresh expiry logic;
+* tipos antigos que obriguem `refreshToken`.
+
+---
+
+# 4. CONTRATO GLOBAL DE RESPOSTA
+
+O backend utiliza envelopes semelhantes a:
+
+## Sucesso
+
+```json
+{
+  "success": true,
+  "data": {}
+}
+```
+
+Algumas respostas podem incluir:
+
+```json
+{
+  "success": true,
+  "data": {},
+  "meta": {}
+}
+```
+
+## Erro
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Mensagem do erro."
+  }
+}
+```
+
+Criar tratamento centralizado.
+
+Nunca descartar:
+
+* `error.code`;
+* `error.message`;
+* status HTTP;
+* detalhes de validação quando presentes.
+
+---
+
+# 5. SEMÂNTICA HTTP OBRIGATÓRIA
+
+## 401 Unauthorized
+
+Significa:
+
+* token ausente;
+* token inválido;
+* token expirado;
+* sessão já não válida.
+
+Comportamento:
+
+1. limpar access token;
+2. limpar sessão persistida;
+3. limpar dados sensíveis em memória;
+4. redirecionar para `/login`;
+5. preservar opcionalmente a rota de destino.
+
+## 403 Forbidden
+
+Significa:
+
+* sessão válida;
+* utilizador sem autorização para aquela operação.
+
+Comportamento:
+
+* não limpar o token;
+* não redirecionar para login;
+* mostrar página ou mensagem `Access denied`;
+* permitir regressar à área Merchant.
+
+## 404 Not Found
+
+Não transformar automaticamente em empty state.
+
+Distinguir:
+
+* endpoint inexistente;
+* recurso inexistente;
+* feature ainda não implementada.
+
+## 409 Conflict
+
+Mostrar erro operacional específico.
+
+Exemplos:
+
+* saldo insuficiente;
+* idempotency conflict;
+* transição de estado inválida;
+* operação já aplicada.
+
+## 422 ou 400
+
+Mostrar erros de validação junto aos respetivos campos sempre que possível.
+
+## 429
+
+Mostrar rate limit e permitir retry controlado.
+
+## 500/502/503
+
+Mostrar estado de indisponibilidade e botão Retry.
+
+Não apagar sessão automaticamente.
+
+---
+
+# 6. AUTENTICAÇÃO
+
+## Login
+
+```http
+POST /api/v1/auth/login
+```
+
+Payload:
+
+```json
+{
+  "email": "merchant@example.com",
+  "password": "password"
+}
+```
+
+Resposta esperada:
+
+```json
+{
+  "success": true,
+  "data": {
+    "token": "JWT",
+    "merchant": {
+      "id": "uuid",
+      "name": "Merchant Name",
+      "email": "merchant@example.com"
+    }
+  }
+}
+```
+
+Guardar apenas:
+
+* access token;
+* informação mínima não sensível da sessão.
+
+Não guardar:
+
+* password;
+* destination de Payout;
+* IBAN;
+* PIX;
+* Wallet address;
+* full API key;
+* webhook secret.
+
+## Register
+
+```http
+POST /api/v1/auth/register
+```
+
+Usar o contrato real já implementado na Phase 2.
+
+Após registo:
+
+* guardar token apenas se a API o retornar;
+* consultar `/auth/me`;
+* consultar capabilities;
+* consultar bootstrap;
+* encaminhar para onboarding ou Commerce Overview.
+
+## Current session
+
+```http
+GET /api/v1/auth/me
+```
+
+Usar para validar a sessão ao carregar a aplicação.
+
+## Logout
+
+```http
+POST /api/v1/auth/logout
+```
+
+O logout remoto pode ser fire-and-forget, mas o estado local deve ser sempre limpo.
+
+---
+
+# 7. FLUXO DE ARRANQUE DA APLICAÇÃO
+
+Implementar esta sequência:
+
+```text
+1. Ler access token do storage
+2. Token ausente → /login
+3. Token presente → GET /auth/me
+4. Sessão válida → GET /platform/capabilities
+5. Depois → GET /platform/bootstrap
+6. Hidratar Merchant, Workspace, Stores e features
+7. Renderizar o produto permitido
+```
+
+Em caso de falha:
+
+```text
+/auth/me 401 → limpar sessão
+/capabilities 403 → Merchant válido sem Admin
+/bootstrap 500/502/503 → manter sessão e mostrar Retry
+```
+
+Evitar múltiplas chamadas simultâneas duplicadas durante a hidratação.
+
+---
+
+# 8. PLATFORM CAPABILITIES
+
+Endpoint canónico:
+
+```http
+GET /api/v1/platform/capabilities
+```
+
+Este endpoint está a ser finalizado no backend e deve tornar-se a fonte oficial para:
+
+* roles;
+* acesso Admin;
+* funcionalidades;
+* ambiente;
+* modos operacionais;
+* notificações disponíveis;
+* controlos financeiros.
+
+Resposta-alvo:
+
+```json
+{
+  "success": true,
+  "data": {
+    "contract": {
+      "name": "XPAY.PlatformCapabilities",
+      "version": "1.0.0",
+      "commerceApi": "v1"
+    },
+    "application": {
+      "name": "XPAY.Expert",
+      "version": "4.0.0-lab",
+      "environment": "pilot"
+    },
+    "identity": {
+      "merchantId": "uuid",
+      "email": "merchant@example.com",
+      "roles": [
+        "merchant",
+        "platform_admin"
+      ],
+      "isPlatformAdmin": true
+    },
+    "capabilities": {
+      "commerce": true,
+      "merchantPayouts": true,
+      "settlements": true,
+      "adminConsole": true,
+      "banking": false,
+      "advisory": true,
+      "advisoryCases": false,
+      "advisoryDocuments": false,
+      "advisoryMessages": false
+    },
+    "operations": {
+      "payoutExecution": "manual",
+      "payoutFx": "manual",
+      "settlementRelease": "manual"
+    },
+    "controls": {
+      "kycGate": false,
+      "payoutLimits": false,
+      "destinationEncryption": false,
+      "fourEyesApproval": false
+    },
+    "notifications": {
+      "telegram": true,
+      "discord": false,
+      "email": false,
+      "whatsapp": false
+    },
+    "generatedAt": "ISO_DATE"
+  }
+}
+```
+
+## Compatibilidade temporária
+
+Antes de depender do endpoint, testar a resposta real.
+
+Caso retorne `404` enquanto o backend ainda está a publicar a rota:
+
+* manter um fallback temporário isolado em `capabilities-api.ts`;
+* o fallback Admin pode utilizar `GET /admin/merchant-payouts?limit=1`;
+* HTTP 200 significa Admin;
+* HTTP 403 significa Merchant sem Admin;
+* nunca colocar Merchant ID ou email hardcoded;
+* remover o fallback quando `/platform/capabilities` estiver operacional.
+
+O fallback não deve aparecer espalhado pela UI.
+
+Criar:
+
+```text
+usePlatformCapabilities()
+useAdminCapability()
+```
+
+---
+
+# 9. PLATFORM BOOTSTRAP
+
+Endpoint:
+
+```http
+GET /api/v1/platform/bootstrap
+```
+
+Usar a resposta real para hidratar:
+
+* user;
+* Merchant;
+* workspace;
+* Stores;
+* balances;
+* KPIs;
+* onboarding;
+* alerts reais;
+* feature flags;
+* environment.
+
+Não assumir que o formato antigo permanecerá estático.
+
+Criar um mapper específico:
+
+```text
+mapPlatformBootstrapResponse()
+```
+
+Não misturar bootstrap com dados sensíveis de Payout.
+
+---
+
+# 10. SEPARAÇÃO DO PRODUTO
+
+Criar um `ProductSwitcher` distinto do `StoreSwitcher`.
+
+## Produtos
+
+```text
+Commerce
+Banking
+Advisory
+Admin Console
+```
+
+## Regras
+
+### Commerce
+
+Ativo quando:
+
+```text
+capabilities.commerce === true
+```
+
+### Banking
+
+Mostrar como `Private Beta` quando:
+
+```text
+capabilities.banking === false
+```
+
+Não utilizar Merchant Wallet como conta bancária.
+
+### Advisory
+
+Mostrar catálogo quando:
+
+```text
+capabilities.advisory === true
+```
+
+Cases, documentos e mensagens só ficam ativos quando as respetivas capabilities forem `true`.
+
+### Admin Console
+
+Mostrar somente quando:
+
+```text
+identity.isPlatformAdmin === true
+```
+
+e:
+
+```text
+capabilities.adminConsole === true
+```
+
+---
+
+# 11. NAVEGAÇÃO E ROTAS
+
+## Redirect principal
+
+```text
+/ → /commerce/overview
+```
+
+## Commerce
+
+```text
+/commerce/overview
+/commerce/payments
+/commerce/transactions
+/commerce/stores
+/commerce/settlements
+/commerce/wallets
+/commerce/payouts
+/commerce/payouts/new
+/commerce/payouts/:id
+/commerce/customers
+/commerce/products
+/commerce/payment-links
+/commerce/invoices
+/commerce/subscriptions
+```
+
+## Developers
+
+```text
+/developers/overview
+/developers/api-keys
+/developers/webhooks
+/developers/docs
+```
+
+## Risk e Analytics
+
+```text
+/risk
+/insights
+```
+
+## Banking
+
+```text
+/banking
+```
+
+Rotas futuras, feature-gated:
+
+```text
+/banking/accounts
+/banking/beneficiaries
+/banking/transfers
+/banking/fx
+/banking/cards
+/banking/crypto
+/banking/statements
+```
+
+## Advisory
+
+```text
+/advisory
+/advisory/services
+/advisory/cases
+/advisory/documents
+/advisory/messages
+```
+
+## Admin
+
+```text
+/admin
+/admin/commerce/merchants
+/admin/commerce/settlements
+/admin/commerce/payouts
+/admin/commerce/payouts/:id
+/admin/commerce/gateways
+/admin/risk
+/admin/kyc
+/admin/revenue
+/admin/advisory
+/admin/system/health
+/admin/system/workers
+/admin/system/queues
+/admin/system/logs
+/admin/system/feature-flags
+```
+
+## Redirects legacy
+
+```text
+/money → /commerce/wallets
+/commerce → /commerce/overview
+/developers → /developers/overview
+/marketplace → /advisory/services
+```
+
+Cada item de navegação deve apontar para uma rota própria.
+
+Não colocar Wallets, FX e Treasury todos em `/money`.
+
+---
+
+# 12. STORE SWITCHER
+
+Remover completamente:
+
+* Nimbus Labs;
+* Quanta Pay;
+* Vertex Commerce;
+* qualquer Store fictícia.
+
+O Store Switcher deve utilizar:
+
+```http
+GET /api/v1/merchant/stores
+```
+
+Operações conhecidas:
+
+```http
+GET   /api/v1/merchant/stores
+POST  /api/v1/merchant/stores
+GET   /api/v1/merchant/stores/:id
+PATCH /api/v1/merchant/stores/:id
+```
+
+A seleção de Store deve:
+
+* utilizar stores reais;
+* permitir `All Stores`;
+* atualizar filtros de Transactions e Analytics;
+* não alterar a identidade do Merchant.
+
+---
+
+# 13. MERCHANT PROFILE
+
+Endpoints:
+
+```http
+GET   /api/v1/merchant/profile
+PATCH /api/v1/merchant/profile
+```
+
+Mostrar:
+
+* nome;
+* email;
+* empresa;
+* tier;
+* status;
+* KYC status;
+* risk score quando retornado;
+* datas relevantes.
+
+Não permitir editar campos que o backend não aceita.
+
+---
+
+# 14. COMMERCE OVERVIEW
+
+Criar `/commerce/overview`.
+
+Consumir:
+
+```http
+GET /api/v1/platform/bootstrap
+GET /api/v1/analytics/overview
+GET /api/v1/transactions/stats
+GET /api/v1/wallets
+```
+
+Mostrar apenas dados reais:
+
+* volume;
+* revenue;
+* transaction count;
+* success rate;
+* recent transactions;
+* Wallet total;
+* available;
+* reserved;
+* pending;
+* Stores;
+* alerts.
+
+Não mostrar percentagens inventadas.
+
+---
+
+# 15. PAYMENTS E TRANSACTIONS
+
+## Transactions
+
+```http
+GET /api/v1/transactions
+GET /api/v1/transactions/stats
+GET /api/v1/transactions/:id
+```
+
+Suportar os filtros reais disponíveis:
+
+* page;
+* limit;
+* status;
+* gateway;
+* currency;
+* reference;
+* Store quando suportado;
+* datas quando suportado.
+
+A tabela deve mostrar:
+
+* reference;
+* customer;
+* customerEmail;
+* amount;
+* currency;
+* status;
+* method;
+* gateway;
+* Store;
+* fee;
+* createdAt.
+
+A página de detalhe deve usar:
+
+```http
+GET /api/v1/transactions/:id
+```
+
+Não derivar detalhes inexistentes da listagem.
+
+## S2S Payments
+
+Endpoint:
+
+```http
+POST /api/v1/payments/charge
+```
+
+É uma API Merchant/Developer.
+
+Não criar um formulário de cobrança produtivo no dashboard sem confirmação explícita.
+
+Pode existir uma área Developer/Test Mode com warning claro.
+
+## Checkout
+
+Endpoints públicos:
+
+```http
+POST /api/v1/checkout/session
+GET  /api/v1/checkout/session/:sessionId
+POST /api/v1/checkout/initiate
+```
+
+Regras:
+
+* criação de sessão usa API key;
+* carregamento e initiate são públicos conforme contrato;
+* initiate não usa JWT;
+* frontend do dashboard não deve misturar JWT com checkout público;
+* `checkout.xpay.expert` permanece uma aplicação/experiência separada.
+
+---
+
+# 16. MERCHANT SETTLEMENT WALLETS
+
+Endpoint principal:
+
+```http
+GET /api/v1/wallets
+```
+
+Quando disponível, integrar também:
+
+```http
+GET /api/v1/wallets/movements
+```
+
+A resposta deve ser mapeada de acordo com o formato real.
+
+Cada Wallet deve possuir:
+
+```ts
+interface Wallet {
+  id: string;
+  currency: CurrencyCode;
+  balance: number;
+  available: number;
+  reserved: number;
+  pending?: number;
+  type: string;
+}
+```
+
+`id` é obrigatório para operações de Payout.
+
+## Representação visual
+
+Usar o nome:
+
+```text
+Commerce Settlement Wallet
+```
+
+Mostrar:
+
+* balance;
+* available;
+* reserved;
+* pending;
+* currency;
+* movimentos.
+
+Não chamar esta Wallet de:
+
+* bank account;
+* current account;
+* business bank account;
+* Banking Wallet.
+
+## Fórmulas visuais
+
+Explicar na UI:
+
+```text
+Balance = total contabilístico do Merchant
+Available = montante disponível para Payout
+Reserved = montante reservado por Payouts pendentes
+Pending = Settlement ainda não libertado
+```
+
+---
+
+# 17. SETTLEMENTS
+
+Settlements representam a conversão de Transactions processadas em saldo disponível para o Merchant.
+
+Fluxo:
+
+```text
+Transaction
+→ Provider fee
+→ XPAY fee
+→ Merchant Net
+→ Settlement Batch
+→ Reconciliation
+→ Release
+→ Wallet Available
+```
+
+Manter separação visual entre:
+
+* Transactions;
+* Settlements;
+* Wallets;
+* Payouts.
+
+## Merchant Settlements
+
+Integrar endpoints reais disponíveis no backend.
+
+Antes de criar chamadas, pesquisar os routers e testar o endpoint live.
+
+Não inventar:
+
+* `/merchant/settlements/:id`;
+* timeline;
+* ações Merchant.
+
+Caso só exista listagem ou dados dentro do Bootstrap, usar apenas esses dados e documentar a limitação.
+
+## Admin Settlements
+
+Endpoint conhecido:
+
+```http
+GET /api/v1/admin/settlements
+```
+
+Os endpoints seguintes devem ser verificados no backend antes de ativar:
+
+```http
+GET  /api/v1/admin/settlements/:id
+GET  /api/v1/admin/settlements/:id/items
+POST /api/v1/admin/settlements/:id/reconcile
+POST /api/v1/admin/settlements/:id/release
+```
+
+Não ativar uma ação que retorne `404`.
+
+Não expor o antigo override piloto como operação normal.
+
+O override piloto está desativado.
+
+## Campos de Settlement
+
+Mostrar quando retornados:
+
+* batch ID;
+* Merchant;
+* Store;
+* provider;
+* transaction count;
+* gross;
+* provider fee;
+* XPAY fee;
+* Merchant Net;
+* provider available date;
+* reconciliation status;
+* release status;
+* releasedAt.
+
+---
+
+# 18. MERCHANT PAYOUT ENGINE
+
+Este módulo pertence ao domínio Ecommerce/Payments.
+
+Não pertence ao futuro Banking Core.
+
+## Ledger domain
+
+```text
+merchant_settlement
+```
+
+## Fluxo contabilístico
+
+### Criação
+
+```text
+available diminui
+reserved aumenta
+balance mantém
+```
+
+### Cancelamento ou rejeição
+
+```text
+reserved diminui
+available aumenta
+balance mantém
+```
+
+### Paid
+
+```text
+reserved diminui
+balance diminui
+available mantém
+```
+
+---
+
+# 19. TIPOS MERCHANT PAYOUT
+
+Criar tipos de domínio sem `any`.
+
+```ts
+export type MerchantPayoutStatus =
+  | "pending_review"
+  | "fx_pending"
+  | "approved"
+  | "processing"
+  | "paid"
+  | "rejected"
+  | "cancelled";
+
+export type MerchantPayoutMethod =
+  | "SEPA_INSTANT"
+  | "PIX"
+  | "USDT_TRC20"
+  | "USDT_ERC20"
+  | "MANUAL";
+
+export type MerchantPayoutFxStatus =
+  | "not_required"
+  | "pending_quote"
+  | "quoted"
+  | "accepted"
+  | "rejected";
+
+export type PixKeyType =
+  | "CPF"
+  | "CNPJ"
+  | "EMAIL"
+  | "PHONE"
+  | "EVP";
+```
+
+Interface principal:
+
+```ts
+export interface MerchantPayout {
+  id: string;
+  ledgerDomain: "merchant_settlement";
+  ticketCode: string;
+
+  merchantId: string;
+  merchantName?: string | null;
+  merchantEmail?: string | null;
+
+  walletId: string;
+
+  sourceCurrency: string;
+  sourceAmount: number;
+
+  payoutCurrency: string;
+  payoutAmount: number | null;
+
+  method: MerchantPayoutMethod;
+  network: string | null;
+
+  destination: Record<string, unknown>;
+
+  beneficiaryName: string | null;
+  beneficiaryCountry: string | null;
+
+  status: MerchantPayoutStatus;
+
+  fxRequired: boolean;
+  fxStatus: string;
+
+  fxRate: number | null;
+  fxProvider: string | null;
+  fxReference: string | null;
+
+  reviewNote: string | null;
+  rejectionReason: string | null;
+
+  providerReference: string | null;
+  externalReference: string | null;
+
+  idempotencyKey: string;
+
+  createdAt: string;
+  updatedAt: string;
+
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  processingAt: string | null;
+  paidAt: string | null;
+  cancelledAt: string | null;
+}
+```
+
+Criar tipos específicos para destination:
+
+* `SepaPayoutDestination`;
+* `PixPayoutDestination`;
+* `Trc20PayoutDestination`;
+* `Erc20PayoutDestination`;
+* `ManualPayoutDestination`.
+
+Não persistir esses objetos no Zustand persistido ou localStorage.
+
+---
+
+# 20. ENDPOINTS MERCHANT PAYOUT
+
+## Options
+
+```http
+GET /api/v1/merchant/payouts/options
+```
+
+Usar esta resposta para construir o formulário dinamicamente.
+
+## Validate
+
+```http
+POST /api/v1/merchant/payouts/validate
+```
+
+Esta chamada:
+
+* valida destination;
+* valida Wallet;
+* valida available;
+* normaliza dados;
+* determina se FX é necessário;
+* não reserva saldo;
+* não cria Ticket.
+
+## Create
+
+```http
+POST /api/v1/merchant/payouts
+```
+
+Header obrigatório:
+
+```http
+Idempotency-Key: <uuid-estável>
+```
+
+A chave deve ser criada uma única vez por intenção de Payout.
+
+Em caso de:
+
+* timeout;
+* network error;
+* 502;
+* retry manual;
+
+reutilizar a mesma Idempotency-Key.
+
+Não gerar outra chave até a intenção ser abandonada ou concluída.
+
+## List
+
+```http
+GET /api/v1/merchant/payouts
+```
+
+Filtros suportados ou previstos:
+
+* status;
+* limit;
+* offset.
+
+Confirmar o contrato live.
+
+## Detail
+
+```http
+GET /api/v1/merchant/payouts/:id
+```
+
+## Cancel
+
+```http
+POST /api/v1/merchant/payouts/:id/cancel
+```
+
+Payload:
+
+```json
+{
+  "reason": "Motivo opcional ou obrigatório conforme contrato."
+}
+```
+
+Permitir Cancel apenas quando o backend aceitar.
+
+Na UI, mostrar inicialmente apenas em:
+
+```text
+pending_review
+fx_pending
+```
+
+---
+
+# 21. Payout Options e Rails
+
+## SEPA Instant
+
+```text
+method: SEPA_INSTANT
+payoutCurrency: EUR
+network: SEPA_INSTANT
+```
+
+Campos:
+
+* beneficiaryName;
+* iban;
+* bic opcional;
+* bankName opcional;
+* country;
+* paymentReference opcional.
+
+Backend valida IBAN com MOD-97.
+
+## PIX
+
+```text
+method: PIX
+payoutCurrency: BRL
+network: PIX
+```
+
+Campos:
+
+* beneficiaryName;
+* keyType;
+* keyValue;
+* taxId opcional;
+* bankName opcional;
+* country `BR`.
+
+Tipos:
+
+```text
+CPF
+CNPJ
+EMAIL
+PHONE
+EVP
+```
+
+Telefone deve utilizar formato internacional, por exemplo:
+
+```text
++5511999999999
+```
+
+## USDT TRC20
+
+```text
+method: USDT_TRC20
+payoutCurrency: USDT
+network: TRC20
+```
+
+Campos:
+
+* beneficiaryName;
+* walletAddress.
+
+## USDT ERC20
+
+```text
+method: USDT_ERC20
+payoutCurrency: USDT
+network: ERC20
+```
+
+Campos:
+
+* beneficiaryName;
+* walletAddress.
+
+## Manual
+
+```text
+method: MANUAL
+```
+
+Campos:
+
+* beneficiaryName;
+* country;
+* network;
+* instructions.
+
+Usado para moedas e operações que ainda não possuem rail automático.
+
+---
+
+# 22. MERCHANT PAYOUT WIZARD
+
+Criar `/commerce/payouts/new`.
+
+## Step 1 — Source
+
+* selecionar Commerce Settlement Wallet;
+* mostrar currency;
+* mostrar available;
+* introduzir sourceAmount;
+* impedir valor zero ou negativo;
+* impedir valor superior ao available no frontend;
+* backend continua a validar.
+
+## Step 2 — Method
+
+* carregar `/merchant/payouts/options`;
+* apresentar apenas métodos retornados;
+* selecionar payoutCurrency;
+* indicar quando a moeda é diferente da sourceCurrency.
+
+## Step 3 — Destination
+
+Renderizar campos conforme método.
+
+Aplicar máscaras apenas visuais.
+
+Não modificar o valor de forma incompatível com o backend.
+
+## Step 4 — Validate
+
+Executar:
+
+```http
+POST /merchant/payouts/validate
+```
+
+Mostrar:
+
+* sourceCurrency;
+* sourceAmount;
+* payoutCurrency;
+* payoutAmount;
+* method;
+* network;
+* normalized destination;
+* fxRequired;
+* fxStatus;
+* initialStatus;
+* availableAfterReservation.
+
+Não criar Payout ainda.
+
+## Step 5 — Confirmation
+
+Mostrar:
+
+```text
+The amount will be reserved from your Commerce Settlement Wallet.
+The external transfer is processed manually.
+```
+
+Quando FX for necessário:
+
+```text
+The payout will wait for a manual FX quote before review.
+```
+
+## Step 6 — Creation
+
+Criar com Idempotency-Key estável.
+
+Desativar o botão enquanto a resposta estiver pendente.
+
+## Step 7 — Success
+
+Mostrar:
+
+* ticketCode;
+* status;
+* sourceAmount;
+* payoutAmount;
+* currencies;
+* destination;
+* FX status;
+* createdAt.
+
+Limpar os dados sensíveis do formulário após conclusão.
+
+---
+
+# 23. MERCHANT PAYOUT LIST
+
+Criar:
+
+```text
+/commerce/payouts
+```
+
+Tabela desktop e cards mobile.
+
+Campos:
+
+* ticketCode;
+* requested date;
+* source amount;
+* source currency;
+* payout amount;
+* payout currency;
+* method;
+* network;
+* beneficiary;
+* status;
+* FX status.
+
+Filtros:
+
+* status;
+* method;
+* currency;
+* data quando suportado.
+
+Empty state:
+
+```text
+No payout requests yet.
+```
+
+CTA:
+
+```text
+Request Payout
+```
+
+---
+
+# 24. MERCHANT PAYOUT DETAIL
+
+Criar:
+
+```text
+/commerce/payouts/:id
+```
+
+Mostrar:
+
+## Summary
+
+* ticket;
+* current status;
+* source;
+* destination amount;
+* currencies;
+* method;
+* network.
+
+## Destination
+
+Mostrar completo apenas ao próprio Merchant autenticado.
+
+Evitar expor destination em:
+
+* console;
+* analytics;
+* error tracking;
+* query keys;
+* URL;
+* localStorage.
+
+## FX
+
+* fxRequired;
+* fxStatus;
+* rate;
+* provider;
+* reference;
+* payoutAmount.
+
+## References
+
+* providerReference;
+* externalReference.
+
+## Timeline
+
+Derivar apenas dos timestamps retornados:
+
+* created;
+* approved;
+* processing;
+* paid;
+* rejected;
+* cancelled.
+
+Não inventar eventos.
+
+Quando o backend passar a retornar `merchant_payout_events`, migrar para a timeline real.
+
+---
+
+# 25. ADMIN AUTHORIZATION
+
+Criar:
+
+```text
+AdminGuard
+```
+
+Condições:
+
+```ts
+capabilities.identity.isPlatformAdmin === true
+```
+
+ou equivalente conforme mapper.
+
+Em 403:
+
+* mostrar Access Denied;
+* não limpar sessão.
+
+Não usar:
+
+* email Admin hardcoded;
+* Merchant ID hardcoded;
+* nome `XPay-Master`;
+* variável pública com lista de Admins.
+
+---
+
+# 26. ADMIN MERCHANT PAYOUT ENDPOINTS
+
+## List
+
+```http
+GET /api/v1/admin/merchant-payouts
+```
+
+Filtros:
+
+* status;
+* merchantId;
+* method;
+* limit;
+* offset.
+
+## Detail
+
+```http
+GET /api/v1/admin/merchant-payouts/:id
+```
+
+## FX quote
+
+```http
+POST /api/v1/admin/merchant-payouts/:id/fx-quote
+```
+
+Payload funcional:
+
+* payoutAmount;
+* fxRate;
+* fxProvider;
+* fxReference;
+* note quando suportada.
+
+Confirmar nomes exatos na resposta real.
+
+## Approve
+
+```http
+POST /api/v1/admin/merchant-payouts/:id/approve
+```
+
+Payload:
+
+```json
+{
+  "note": "Nota operacional opcional."
+}
+```
+
+## Processing
+
+```http
+POST /api/v1/admin/merchant-payouts/:id/processing
+```
+
+Enviar os campos aceites pelo contrato real, previstos como:
+
+* providerReference;
+* externalReference;
+* note.
+
+## Paid
+
+```http
+POST /api/v1/admin/merchant-payouts/:id/paid
+```
+
+A operação reduz definitivamente:
+
+```text
+Wallet balance
+Wallet reserved
+```
+
+A UI deve exigir confirmação forte.
+
+## Reject
+
+```http
+POST /api/v1/admin/merchant-payouts/:id/reject
+```
+
+Payload:
+
+```json
+{
+  "reason": "Motivo obrigatório."
+}
+```
+
+---
+
+# 27. ADMIN PAYOUT OPERATIONS DESK
+
+Criar:
+
+```text
+/admin/commerce/payouts
+```
+
+## KPIs
+
+Calcular apenas a partir dos dados reais retornados:
+
+* pending review;
+* FX pending;
+* approved;
+* processing;
+* paid;
+* rejected;
+* cancelled.
+
+Não inventar volumes financeiros globais se a API não os retornar.
+
+## Tabela
+
+* ticket;
+* Merchant;
+* source amount;
+* payout amount;
+* currencies;
+* method;
+* beneficiary;
+* FX;
+* status;
+* createdAt;
+* ações.
+
+## Filtros
+
+* status;
+* Merchant;
+* method;
+* currency;
+* search.
+
+Search local apenas sobre a página carregada deve ser claramente local.
+
+Não simular pesquisa backend global.
+
+## Detail
+
+Criar:
+
+```text
+/admin/commerce/payouts/:id
+```
+
+Mostrar:
+
+* Merchant;
+* email;
+* Wallet;
+* destination completo;
+* source;
+* payout;
+* FX;
+* references;
+* notes;
+* timestamps;
+* ações permitidas.
+
+---
+
+# 28. TRANSIÇÕES DE PAYOUT
+
+Representar:
+
+```text
+fx_pending
+→ FX quote
+→ pending_review
+```
+
+```text
+pending_review
+→ approved
+→ rejected
+→ cancelled
+```
+
+```text
+approved
+→ processing
+→ rejected
+```
+
+```text
+processing
+→ paid
+→ rejected
+```
+
+```text
+paid
+rejected
+cancelled
+→ read-only
+```
+
+O frontend deve sempre aceitar que o backend rejeite uma transição.
+
+Não alterar o estado local antes da confirmação HTTP.
+
+---
+
+# 29. CONFIRMAÇÕES ADMIN
+
+## FX Quote
+
+Dialog com:
+
+* payoutAmount;
+* fxRate;
+* fxProvider;
+* fxReference;
+* note.
+
+## Approve
+
+Dialog com nota opcional.
+
+## Processing
+
+Exigir:
+
+* providerReference ou externalReference;
+* note operacional.
+
+## Paid
+
+Exigir:
+
+1. providerReference ou externalReference;
+2. nota;
+3. checkbox explícito;
+4. introdução manual de:
+
+```text
+PAID
+```
+
+Warning obrigatório:
+
+```text
+This action permanently reduces the Merchant Wallet balance.
+Confirm only after the external transfer has been executed.
+```
+
+## Reject
+
+Motivo obrigatório.
+
+---
+
+# 30. DEVELOPER API
+
+## API Keys
+
+Endpoints integrados na Phase 2:
+
+```http
+GET    /api/v1/api-keys
+POST   /api/v1/api-keys
+DELETE /api/v1/api-keys/:id
+```
+
+Confirmar live se o prefixo atual continua exatamente este.
+
+Regras:
+
+* `fullKey` aparece apenas uma vez;
+* após fechar o dialog, remover da memória;
+* não persistir;
+* listagem mostra apenas preview;
+* botão Copy;
+* warning explícito.
+
+## Webhooks
+
+```http
+GET    /api/v1/webhooks
+POST   /api/v1/webhooks
+PATCH  /api/v1/webhooks/:id
+DELETE /api/v1/webhooks/:id
+```
+
+Confirmar live.
+
+Regras:
+
+* secret apresentado uma vez;
+* listagem mascarada;
+* não persistir secret;
+* mostrar Store associada;
+* mostrar eventos e status.
+
+## Gateway Vault
+
+O backend possui Gateway Vault por Store.
+
+Integrar apenas se existirem endpoints Merchant autorizados e documentados.
+
+Nunca expor:
+
+* Stripe secret key;
+* webhook signing secret completo;
+* credenciais internas.
+
+---
+
+# 31. RISK E TREASURY
+
+## Risk
+
+```http
+GET /api/v1/risk/profile
+GET /api/v1/risk/kyc/status
+```
+
+Usar apenas dados reais.
+
+Não mostrar alertas fictícios.
+
+## Treasury
+
+```http
+GET /api/v1/treasury/overview
+```
+
+Não confundir Treasury da plataforma com Merchant Settlement Wallet.
+
+Mostrar claramente o contexto.
+
+---
+
+# 32. COMMERCE MODULES EXISTENTES
+
+Os seguintes módulos já possuem frontend Phase 2 ou endpoints previstos:
+
+* Customers;
+* Products;
+* Payment Links;
+* Invoices;
+* Subscriptions.
+
+Antes de integrar, validar o prefixo real da API.
+
+O backend histórico utiliza um router Commerce, podendo existir rotas sob:
+
+```text
+/api/v1/commerce/*
+```
+
+O frontend atual pode estar a chamar:
+
+```text
+/products
+/customers
+/payment-links
+/invoices
+/subscriptions
+```
+
+Não assumir que o contrato legado está correto.
+
+Para cada endpoint:
+
+1. pesquisar o backend;
+2. testar live autenticado;
+3. registar HTTP status;
+4. ajustar o endpoint canónico;
+5. documentar no relatório.
+
+Não criar dados falsos quando o endpoint estiver incompleto.
+
+---
+
+# 33. BANKING
+
+Criar uma área visual claramente separada.
+
+Página:
+
+```text
+/banking
+```
+
+Título:
+
+```text
+XPay Banking
+```
+
+Subtítulo:
+
+```text
+Business accounts, transfers, cards and FX.
+```
+
+Badge:
+
+```text
+Private Beta
+```
+
+Cards informativos:
+
+* Multi-currency Accounts;
+* Beneficiaries;
+* Transfers;
+* FX;
+* Cards;
+* Crypto;
+* Statements.
+
+Não mostrar:
+
+* saldos;
+* IBANs;
+* cartões;
+* transferências;
+* movimentos fictícios.
+
+Não reutilizar Commerce Wallet.
+
+Não ativar formulários de Banking.
+
+---
+
+# 34. ADVISORY / CONSULTORIA
+
+Criar:
+
+```text
+/advisory
+```
+
+Título:
+
+```text
+XPay Advisory
+```
+
+Subtítulo:
+
+```text
+Business formation, payments setup and international operations.
+```
+
+Indicação configurável:
+
+```text
+Powered by Atlas Advisory
+```
+
+## Catálogo de serviços
+
+* US LLC Formation;
+* UK LTD Formation;
+* Portugal LDA;
+* France SAS/SASU;
+* Banking & Payment Setup;
+* Ecommerce Launch;
+* Compliance & Documentation;
+* Custom Advisory.
+
+Nesta fase:
+
+* usar catálogo estático de definição de produto, não dados transacionais;
+* não criar Cases fictícios;
+* não criar preços finais não configurados;
+* botões podem abrir formulário de interesse local ou indicar Coming Soon;
+* não simular envio ao backend.
+
+## Áreas futuras
+
+```text
+/advisory/cases
+/advisory/documents
+/advisory/messages
+```
+
+Mostrar empty/coming soon conforme capabilities:
+
+* advisoryCases;
+* advisoryDocuments;
+* advisoryMessages.
+
+---
+
+# 35. NOTIFICAÇÕES DA INTERFACE
+
+Remover notificações hardcoded atuais.
+
+Enquanto não existir endpoint de notificações do utilizador:
+
+```text
+No new notifications.
+```
+
+Não reproduzir no frontend o canal interno Telegram.
+
+O Telegram é uma integração operacional backend/Admin.
+
+Capabilities podem informar:
+
+* Telegram ativo;
+* Discord inativo;
+* email inativo;
+* WhatsApp inativo.
+
+Isso não significa que o Merchant possui uma inbox desses canais.
+
+---
+
+# 36. REACT QUERY
+
+Criar query keys por domínio:
+
+```text
+auth
+platform
+merchant
+stores
+transactions
+wallets
+settlements
+merchant-payouts
+admin-payouts
+analytics
+risk
+treasury
+developers
+```
+
+## Regras
+
+* nunca colocar destination completo na query key;
+* não utilizar optimistic update para saldos;
+* não utilizar optimistic update para estado financeiro;
+* invalidar Wallets após create/cancel/reject/paid;
+* invalidar Payout list e detail após cada ação;
+* invalidar Platform Bootstrap quando o saldo ou status agregado mudar;
+* invalidar Admin list após ação Admin;
+* utilizar `enabled` para queries dependentes de autenticação;
+* impedir requests Admin antes de confirmar capability.
+
+---
+
+# 37. HOOKS OBRIGATÓRIOS
+
+## Platform
+
+```text
+usePlatformCapabilities
+usePlatformBootstrap
+useAdminCapability
+```
+
+## Wallets
+
+```text
+useWallets
+useWalletMovements
+```
+
+## Merchant Payout
+
+```text
+useMerchantPayoutOptions
+useValidateMerchantPayout
+useCreateMerchantPayout
+useMerchantPayouts
+useMerchantPayout
+useCancelMerchantPayout
+```
+
+## Admin Payout
+
+```text
+useAdminMerchantPayouts
+useAdminMerchantPayout
+useQuoteMerchantPayoutFx
+useApproveMerchantPayout
+useProcessMerchantPayout
+useMarkMerchantPayoutPaid
+useRejectMerchantPayout
+```
+
+## Settlements
+
+Criar apenas hooks correspondentes a endpoints confirmados.
+
+Não criar hooks para URLs inventadas.
+
+---
+
+# 38. FEATURE FLAGS
+
+Criar uma configuração central tipada.
+
+A fonte principal deve ser `/platform/capabilities`.
+
+Fallback local apenas para comportamento visual seguro:
+
+```ts
+const safeDefaults = {
+  commerce: true,
+  merchantPayouts: false,
+  settlements: false,
+  adminConsole: false,
+  banking: false,
+  advisory: true,
+  advisoryCases: false,
+  advisoryDocuments: false,
+  advisoryMessages: false,
+};
+```
+
+Não ativar uma funcionalidade financeira por fallback.
+
+O backend pode ativá-la após carregar capabilities.
+
+---
+
+# 39. SEGURANÇA DE DADOS
+
+É proibido guardar permanentemente:
+
+* IBAN;
+* BIC;
+* CPF;
+* CNPJ;
+* chave PIX;
+* telefone PIX;
+* email PIX;
+* crypto Wallet address;
+* payout instructions;
+* access token em logs;
+* full API key;
+* webhook secret.
+
+Não enviar destination para:
+
+* analytics;
+* Sentry breadcrumbs;
+* console;
+* URL;
+* query string.
+
+Após concluir ou cancelar o Wizard:
+
+* limpar React state;
+* limpar form state;
+* remover Idempotency-Key quando a intenção tiver sido concluída;
+* remover destination da memória quando possível.
+
+---
+
+# 40. UX FINANCEIRA
+
+Todas as operações devem possuir:
+
+* loading state;
+* disabled state;
+* sucesso confirmado;
+* erro específico;
+* retry seguro;
+* confirmação;
+* empty state;
+* access denied;
+* network error.
+
+Não usar apenas toast para erros críticos.
+
+Erros financeiros devem aparecer junto ao formulário ou ação.
+
+Mapear mensagens para códigos como:
+
+```text
+INSUFFICIENT_AVAILABLE_BALANCE
+INVALID_IBAN
+INVALID_BIC
+INVALID_PIX_CPF
+INVALID_PIX_CNPJ
+INVALID_PIX_EMAIL
+INVALID_PIX_PHONE
+INVALID_PIX_EVP
+INVALID_TRC20_ADDRESS
+INVALID_ERC20_ADDRESS
+INVALID_PAYOUT_TRANSITION
+PAYOUT_KYC_REQUIRED
+FX_QUOTE_REQUIRED
+UNAUTHORIZED
+FORBIDDEN
+```
+
+Preservar também a mensagem devolvida pelo backend.
+
+---
+
+# 41. I18N
+
+Implementar traduções para:
+
+* English;
+* Portuguese;
+* Spanish;
+* French.
+
+Todo o conteúdo novo deve passar pelo sistema i18n.
+
+Podem permanecer sem tradução:
+
+* SEPA;
+* PIX;
+* CPF;
+* CNPJ;
+* EVP;
+* USDT;
+* TRC20;
+* ERC20;
+* API;
+* Webhook;
+* Idempotency-Key.
+
+---
+
+# 42. RESPONSIVIDADE
+
+Suportar:
+
+* desktop;
+* tablet;
+* mobile.
+
+## Desktop
+
+* tabelas completas;
+* side panels;
+* dialogs;
+* Operations Desk.
+
+## Mobile
+
+* cards em vez de tabelas largas;
+* ações em menu;
+* destination em secções recolhíveis;
+* confirmações financeiras em full-screen sheet quando adequado.
+
+---
+
+# 43. CORREÇÕES OBRIGATÓRIAS DO FRONTEND ATUAL
+
+Corrigir:
+
+1. `/money/page.tsx` importa `WalletsPage`, mas retorna nome inconsistente;
+2. remover `refreshToken` de todos os tipos;
+3. tornar `Wallet.id` obrigatório;
+4. remover Workspaces fictícios;
+5. remover notificações fictícias;
+6. dar rotas reais aos itens Admin;
+7. deixar de usar sempre `DashboardShell mode="merchant"`;
+8. implementar AdminGuard;
+9. distinguir 401 e 403;
+10. impedir múltiplos itens de navegação com a mesma rota;
+11. substituir strings novas hardcoded por i18n;
+12. remover `any` dos novos contratos financeiros.
+
+---
+
+# 44. API CONTRACT VERIFICATION
+
+Antes de considerar a integração concluída, criar um relatório de verificação live.
+
+Para cada endpoint usado, registar:
+
+```text
+Method
+URL
+Authentication
+Expected status
+Actual status
+Response envelope
+Frontend hook
+Page using it
+```
+
+Categorias:
+
+* Auth;
+* Platform;
+* Merchant;
+* Stores;
+* Transactions;
+* Wallets;
+* Settlements;
+* Payouts;
+* Admin;
+* Developers;
+* Risk;
+* Treasury;
+* Commerce.
+
+Não incluir tokens, passwords ou PII no relatório.
+
+---
+
+# 45. TESTES FUNCIONAIS OBRIGATÓRIOS
+
+## Login
+
+* login válido;
+* login inválido;
+* token persistido;
+* reload;
+* logout;
+* 401.
+
+## Capabilities
+
+* Merchant normal;
+* Platform Admin;
+* 403 sem logout;
+* fallback temporário apenas se endpoint ainda estiver 404.
+
+## Wallet
+
+* balance;
+* available;
+* reserved;
+* pending;
+* Wallet ID presente.
+
+## Payout validation
+
+* SEPA válido;
+* IBAN inválido;
+* PIX válido;
+* PIX inválido;
+* TRC20 válido;
+* ERC20 válido;
+* saldo insuficiente;
+* cross-currency com FX pending.
+
+## Payout create
+
+* Ticket criado;
+* Idempotency-Key reutilizada em retry;
+* Ticket não duplicado;
+* Wallet reserved atualizada.
+
+## Payout cancel
+
+* estado cancelled;
+* Wallet available restaurada;
+* reserved restaurado.
+
+## Admin
+
+* Admin list;
+* Admin detail;
+* approve;
+* reject;
+* FX quote;
+* processing.
+
+## Paid
+
+Não executar uma operação `paid` real sem autorização explícita para o teste financeiro.
+
+A UI pode ser validada até ao dialog final sem submeter.
+
+## Banking
+
+* nenhum dado fictício;
+* ações desativadas.
+
+## Advisory
+
+* catálogo visível;
+* nenhum Case fictício.
+
+---
+
+# 46. BUILD E QUALIDADE
+
+Antes do push:
+
+```bash
+npm run lint
+npm run build
+```
+
+Ambos devem passar sem:
+
+* errors;
+* warnings relevantes;
+* TypeScript errors;
+* hydration errors;
+* rotas quebradas.
+
+Testar também:
+
+* navegação direta por URL;
+* reload numa rota protegida;
+* mobile;
+* dark mode;
+* light mode;
+* todas as línguas.
+
+---
+
+# 47. ESTRATÉGIA DE IMPLEMENTAÇÃO
+
+Executar por etapas, sem tentar modificar tudo de forma descontrolada.
+
+## Phase A — Foundation
+
+* corrigir inconsistências Phase 2;
+* types;
+* error handling;
+* capabilities;
+* route guards;
+* Product Switcher;
+* rotas canónicas.
+
+## Phase B — Merchant Commerce
+
+* overview;
+* transactions;
+* Stores;
+* Wallets;
+* Payout list;
+* Payout Wizard;
+* Payout detail.
+
+## Phase C — Admin Operations
+
+* AdminGuard;
+* Admin navigation;
+* Payout queue;
+* Payout detail;
+* FX;
+* approve;
+* processing;
+* reject;
+* Paid confirmation.
+
+## Phase D — Settlements
+
+* Merchant view com endpoints reais;
+* Admin list;
+* detail/actions apenas se confirmados.
+
+## Phase E — Banking e Advisory
+
+* Banking Private Beta;
+* Advisory catalogue;
+* feature gates;
+* empty states.
+
+## Phase F — QA
+
+* API contract report;
+* lint;
+* build;
+* screenshots;
+* commit.
+
+---
+
+# 48. CRITÉRIOS DE ACEITAÇÃO
+
+A entrega só está concluída quando:
+
+1. o login usa o backend real;
+2. não existe refresh token;
+3. `/auth/me` valida a sessão;
+4. capabilities controlam Merchant/Admin e features;
+5. 403 não termina a sessão;
+6. Bootstrap hidrata dados reais;
+7. Workspaces fictícios foram removidos;
+8. notificações fictícias foram removidas;
+9. todas as rotas possuem destino próprio;
+10. Commerce está visualmente separado de Banking;
+11. Advisory está visualmente separado;
+12. Admin Console só aparece para Admin;
+13. Wallet mostra balance, available, reserved e pending reais;
+14. Payout options vêm da API;
+15. Payout validate usa a API;
+16. Payout create usa Idempotency-Key;
+17. retries não duplicam Tickets;
+18. Payout list usa dados reais;
+19. Payout detail usa dados reais;
+20. cancelamento atualiza Wallet e caches;
+21. Admin lista Payouts reais;
+22. Admin abre detalhes reais;
+23. Admin FX funciona;
+24. Admin approve funciona;
+25. Admin processing funciona;
+26. Admin reject funciona;
+27. Paid possui confirmação forte;
+28. Settlements não são misturados com Payouts;
+29. Banking não mostra saldos falsos;
+30. Advisory não mostra Cases falsos;
+31. nenhum destination sensível é persistido;
+32. novos contratos não usam `any`;
+33. lint passa;
+34. build passa;
+35. relatório de endpoints live é entregue;
+36. screenshots são entregues;
+37. commit final é informado.
+
+---
+
+# 49. RELATÓRIO FINAL OBRIGATÓRIO
+
+Entregar:
+
+## 1. Resumo executivo
+
+O que ficou operacional.
+
+## 2. Ficheiros alterados
+
+Separados por:
+
+* API;
+* Types;
+* Hooks;
+* Stores;
+* Guards;
+* Shell;
+* Merchant;
+* Admin;
+* Banking;
+* Advisory;
+* i18n.
+
+## 3. Rotas finais
+
+Lista completa.
+
+## 4. Endpoints integrados
+
+Tabela:
+
+```text
+Method | Endpoint | Hook | Page | Status
+```
+
+## 5. Contratos reais encontrados
+
+Documentar divergências entre tipos antigos e API real.
+
+## 6. Authentication flow
+
+Detalhar login, hydrate, me, capabilities, bootstrap e logout.
+
+## 7. Merchant Payout flow
+
+Detalhar validate, create, list, detail e cancel.
+
+## 8. Admin Payout flow
+
+Detalhar list, detail, FX, approve, processing, paid e reject.
+
+## 9. Settlement integration
+
+O que foi possível integrar e o que falta no backend.
+
+## 10. Commerce/Banking/Advisory separation
+
+Explicar a arquitetura final.
+
+## 11. Segurança
+
+Explicar como destination, tokens, full keys e secrets são protegidos.
+
+## 12. Resultados
+
+```text
+npm run lint
+npm run build
+```
+
+## 13. Screenshots
+
+* Login;
+* Commerce Overview;
+* Transactions;
+* Stores;
+* Wallets;
+* New Payout;
+* Payout Validation;
+* Merchant Payout List;
+* Merchant Payout Detail;
+* Admin Payout Queue;
+* Admin Payout Detail;
+* FX Quote;
+* Processing Dialog;
+* Paid Confirmation;
+* Settlements;
+* Banking Private Beta;
+* Advisory.
+
+## 14. Limitações
+
+Listar apenas limitações reais dependentes do backend.
+
+## 15. Commit final
+
+Informar:
+
+* branch;
+* SHA;
+* mensagem;
+* build status.
+
+Não fazer push enquanto o lint e o build não estiverem validados.
