@@ -1,72 +1,163 @@
+# XPay.Expert Phase 3 — Worklog
+
+---
+Task ID: 0
+Agent: Main Architect
+Task: Explore Phase 2 codebase and plan Phase 3 architecture
+
+Work Log:
+- Cloned xpay.expert repo at commit 279f6a5
+- Analyzed all source files: stores, types, API clients, endpoints, hooks, components, routes
+- Identified Phase 2 architecture: view-router pattern (single page, component switching)
+- Identified all 8 Phase 2 bugs to fix
+- Planned Phase 3 route taxonomy and architecture
+
+Stage Summary:
+- Phase 2 uses view-router pattern (not file-based routing)
+- DashboardShell wraps all protected content with sidebar navigation
+- API clients: private-client.ts (JWT), public-client.ts (no auth), client.ts (legacy), xpApi.ts (legacy)
+- Stores: auth, platform, workspace, ui
+- Key bugs: WalletsPageRoute reference, refreshToken in AuthSession, hardcoded workspaces, hardcoded notifications, 403 clearing session
 
 ---
 Task ID: 1
-Agent: main
-Task: Clone XPayments.Digital repo, rebrand to XPay.Expert, update logos, and push to GitHub
+Agent: Main Architect
+Task: Phase A — Fix Phase 2 inconsistencies + Foundation
 
 Work Log:
-- Cloned https://github.com/nexflowx-hub/xpayments.digital.git to /home/z/xpay-expert-clone
-- Analyzed all 140+ files, identified every "XPayments", "XPayments.Digital", "xpayments.digital" reference
-- Performed systematic replacements across all source, config, documentation, and asset files:
-  - "XPayments, Inc." → "XPay Expert, Inc."
-  - "XPayments.Digital" → "XPay.Expert"
-  - "XPayments" → "XPay"
-  - "xpayments.digital" → "xpay.expert"
-  - "XPay_Digital" → "XPay_Expert"
-  - "X-XPayments-Signature" → "X-XPay-Signature"
-  - "@xpayments/node" → "@xpay.expert/node"
-  - "xpayments" (lowercase identifiers) → "xpay-expert"
-  - Gateway names, SDK packages, storage keys, social handles, email addresses, API URLs
-- Analyzed 2 uploaded logo images using VLM: metallic circuit-board design (full logo) and glowing transparent design (symbol/icon)
-- Generated all required logo sizes from uploaded images using Python PIL:
-  - logo.png (1024x1024), logo-1024.png (1024x1024), og-image.png (1200x630)
-  - favicon-32.png (32x32), apple-touch-icon.png (180x180)
-  - icon-192.png, icon-512.png, icon-maskable-192.png, icon-maskable-512.png
-- Updated SVG logos (logo.svg, logo-symbol.svg, favicon.svg) with embedded new images
-- Updated PWA manifest: name → "XPay.Expert"
-- Updated layout.tsx metadata: title, OG, Twitter cards → "XPay.Expert"
-- Updated config/index.ts: APP_NAME → "XPay.Expert"
-- Updated comprehensive README (1291 lines) with XPay.Expert branding
-- Updated all technical documentation files
-- Committed all changes and force-pushed to https://github.com/nexflowx-hub/xpay.expert.git
+- Removed refreshToken from AuthSession type, auth store, xpApi.ts
+- Made Wallet.id required in types
+- Removed hardcoded workspace names (Nimbus Labs, Quanta Pay, Vertex Commerce)
+- Removed hardcoded notifications from NotificationsPanel
+- Fixed 403 handling — 401 clears session, 403 shows access denied without clearing
+- Created feature-flags.ts with centralized configuration
+- Created admin store with capability probe
+- Updated ui store with ProductArea type
+- Created complete MerchantPayout types (no 'any')
+- Added all merchant + admin payout endpoints
+- Added all React Query hooks
 
 Stage Summary:
-- Repository successfully rebranded from XPayments.Digital to XPay.Expert
-- 82 files changed across source code, documentation, and assets
-- All new logos generated and deployed
-- Zero remaining "xpayments" references in source/public/config files
-- Successfully pushed to: https://github.com/nexflowx-hub/xpay.expert.git
+- All Phase 2 bugs fixed
+- 6 new types files, admin store, feature flags
+- 16 new API endpoints, 16 new React Query hooks
 
 ---
-Task ID: 2
-Agent: main
-Task: Phase 2 — Real backend integration for XPay.Expert Lab
+Task ID: 2-a
+Agent: full-stack-developer
+Task: Core infrastructure — Shell, Layout, Guards, Config, Navigation
 
 Work Log:
-- Analyzed Phase 1 architecture (single-route SPA with Zustand state-driven routing)
-- Copied all Phase 1 code (119 source files) from clone to my-project
-- Created new API layer: public-client.ts (no JWT), private-client.ts (JWT, no refresh token), endpoints.ts (all API functions)
-- Extended types/index.ts with 20+ Phase 2 types (PlatformBootstrap, capabilities, onboarding, etc.)
-- Rewrote stores/auth.ts: only access token, no refresh token, uses setPrivateAccessToken
-- Created stores/platform.ts: Zustand store for bootstrap data with capability helpers
-- Created stores/workspace.ts: persisted selectedStoreId, validates against bootstrap stores
-- Created hooks/use-queries.ts: 28 React Query hooks for all endpoints with proper invalidation
-- Rewrote storage/xp-storage.ts: XPay.Expert-specific keys, migration from Phase 1
-- Created auth pages: /login, /register with real auth store integration
-- Created (protected) route group with DashboardGuard auth check
-- Created 8 route pages: /money, /commerce, /developers, /risk, /marketplace, /insights, /settings, /support
-- Updated DashboardShell sidebar to use Next.js router.push() instead of Zustand state
-- Updated config/index.ts merchantNav with canonical routes
-- Updated stores.tsx, api-keys.tsx, webhooks.tsx to use new React Query hooks
-- Removed mock /api/bootstrap route
-- Fixed 3 pre-existing lint errors (useMemo, conditional hook)
-- Added all missing utils (formatCurrency, formatNumber, formatPercent, formatDate, timeAgo, initials, maskKey)
-- Build passes: 14 routes generated, lint clean
+- Complete rewrite of DashboardShell with Product Switcher, real workspace data, empty notifications
+- Created MerchantGuard and AdminGuard components
+- Created (dashboard)/layout.tsx and (dashboard)/admin/layout.tsx
+- Updated config/index.ts with full route taxonomy
+- Created redirect files for old Phase 2 routes
+- Updated root page.tsx to redirect authenticated users
 
 Stage Summary:
-- Architecture: Single-route SPA → Next.js file-based routing (/, /money, /commerce, /developers, /risk, /marketplace, /insights, /settings, /support)
-- Auth: Real JWT login/register via publicApi, session validation via privateApi, 401 → clear + redirect
-- Bootstrap: usePlatformBootstrap hook → hydrates platformStore + workspaceStore
-- CRUD: Stores, API Keys (with one-time fullKey display), Webhooks (with one-time secret)
-- No mocks, no hardcoded values, no refresh tokens
-- Build: ✅ Lint: ✅ Dev server: ✅ running on port 3000
+- Shell supports 4 product areas with visual differentiation
+- Navigation uses real file-based routes
+- Guards enforce auth and admin access properly
+
+---
+Task ID: 2-b
+Agent: full-stack-developer
+Task: Merchant Payout Wizard, List, Detail
+
+Work Log:
+- Created /commerce/payouts/page.tsx — list with filters, pagination, status badges
+- Created /commerce/payouts/new/page.tsx — 5-step wizard
+- Created /commerce/payouts/[id]/page.tsx — detail with timeline, cancel
+
+Stage Summary:
+- Complete payout lifecycle UI
+- Security: no financial data persisted, idempotency key managed properly
+
+---
+Task ID: 2-c
+Agent: full-stack-developer
+Task: Admin Operations pages (16 pages)
+
+Work Log:
+- Admin Console overview with KPIs
+- Admin Merchants, KYC, Revenue pages
+- Admin Payout Operations queue with KPIs
+- Admin Payout Detail with 5 confirmation dialogs (Approve, FX Quote, Processing, PAID, Reject)
+- PAID dialog requires typing "PAID" to confirm
+- Admin Settlements page
+- Admin System pages (Health, Workers, Queues, Logs, Feature Flags)
+
+Stage Summary:
+- 16 admin pages with full CRUD operations
+- Strong financial confirmation dialogs
+
+---
+Task ID: 2-d
+Agent: full-stack-developer
+Task: Banking, Advisory, Developers, and remaining pages (21 pages)
+
+Work Log:
+- Banking: Private Beta landing with 6 feature cards, 7 feature-gated sub-pages
+- Advisory: Landing with 4 area cards, Services catalog with 8 service types, 3 feature-gated sub-pages
+- Developers: Overview, API Keys management, Webhooks management, Docs
+- Risk, Insights, Settings, Support pages
+
+Stage Summary:
+- 21 pages total
+- Banking: emerald/navy accents, no fake data
+- Advisory: amber/gold accents, "Powered by Atlas Advisory" footer
+- All feature-gated pages show clean empty states
+
+---
+Task ID: 2-e
+Agent: full-stack-developer
+Task: Commerce core pages (11 pages)
+
+Work Log:
+- Commerce Overview (main dashboard)
+- Payments, Transactions pages with filters and pagination
+- Stores, Customers, Products pages
+- Wallets page with "Commerce Settlement Wallet" label and "Request Payout" button
+- Settlements page (separated from payouts)
+- Payment Links, Invoices, Subscriptions pages
+
+Stage Summary:
+- 11 commerce pages
+- Wallets clearly labeled as "Commerce Settlement Wallet"
+- Settlements separated from Payouts conceptually
+
+---
+Task ID: 2-f
+Agent: full-stack-developer
+Task: i18n, XP API fixes, redirects
+
+Work Log:
+- Added ~130 translation keys × 4 languages (EN, PT-BR, FR, ES)
+- Cleaned up xpApi.ts
+- Updated client.ts 403 handling comment
+- Created 7 redirect files for old Phase 2 routes
+
+Stage Summary:
+- Full i18n coverage for Phase 3 features
+- All old routes redirect correctly
+
+---
+Task ID: 3
+Agent: Main Architect
+Task: Lint, Build, Verification
+
+Work Log:
+- Fixed 4 lint errors (set-state-in-effect, refs, require-imports)
+- Added StatusBadge, MethodBadge, CurrencyBadge, Sparkline to shared components
+- Fixed parsing error in StatusBadge (invalid key with space)
+- Removed conflicting route files between (protected) and (dashboard)
+- Removed deprecated eslint config from next.config.ts
+- Final lint: 0 errors, 0 warnings
+- Final build: passes successfully
+
+Stage Summary:
+- Lint: CLEAN
+- Build: PASSING
+- Commit SHA: 8113e50cd3a5b79d88adef2f2865b74020309518
+- Push to GitHub blocked by sandbox network restrictions (no credentials)
