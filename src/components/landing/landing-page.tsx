@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useUi } from "@/stores/ui";
+import { useRouter } from "next/navigation";
 import {
   cn,
   formatCurrency,
@@ -141,7 +141,7 @@ function BrandLogo({ className }: { className?: string }) {
 // ----------------------------------------------------------------------------
 
 function NavBar() {
-  const { setAppView } = useUi();
+  const router = useRouter();
   const t = useT();
   const [open, setOpen] = React.useState(false);
   const [scrolled, setScrolled] = React.useState(false);
@@ -189,14 +189,14 @@ function NavBar() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setAppView("login")}
+            onClick={() => router.push("/login")}
             className="text-muted-foreground hover:text-foreground"
           >
             {t("common.signin")}
           </Button>
           <Button
             size="sm"
-            onClick={() => setAppView("login")}
+            onClick={() => router.push("/register")}
             className="glow-blue-sm"
           >
             {t("common.signup")}
@@ -240,12 +240,12 @@ function NavBar() {
               <LanguageSwitcher variant="full" className="w-full justify-start" />
               <Button
                 variant="ghost"
-                onClick={() => setAppView("login")}
+                onClick={() => { router.push("/login"); setOpen(false); }}
                 className="justify-start"
               >
                 {t("common.signin")}
               </Button>
-              <Button onClick={() => setAppView("login")} className="justify-center">
+              <Button onClick={() => { router.push("/register"); setOpen(false); }} className="justify-center">
                 {t("common.signup")}
                 <ArrowRight className="size-4" />
               </Button>
@@ -580,7 +580,7 @@ function CodeBlock({
 // ----------------------------------------------------------------------------
 
 function Hero() {
-  const { setAppView } = useUi();
+  const router = useRouter();
   const t = useT();
   return (
     <section className="relative overflow-hidden">
@@ -638,7 +638,7 @@ function Hero() {
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Button
               size="lg"
-              onClick={() => setAppView("login")}
+              onClick={() => router.push("/register")}
               className="glow-blue-sm h-11 px-6 text-sm"
             >
               {t("hero.cta1")}
@@ -647,7 +647,7 @@ function Hero() {
             <Button
               size="lg"
               variant="outline"
-              onClick={() => setAppView("login")}
+              onClick={() => router.push("/register")}
               className="h-11 border-border/70 bg-background/40 px-6 text-sm backdrop-blur"
             >
               {t("hero.cta2")}
@@ -1213,7 +1213,7 @@ function Testimonials() {
 // ----------------------------------------------------------------------------
 
 function FinalCTA() {
-  const { setAppView } = useUi();
+  const router = useRouter();
   const t = useT();
   return (
     <section className="px-5 py-16 sm:px-8 sm:py-24">
@@ -1239,7 +1239,7 @@ function FinalCTA() {
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button
                   size="lg"
-                  onClick={() => setAppView("login")}
+                  onClick={() => router.push("/register")}
                   className="glow-blue h-12 px-8 text-sm"
                 >
                   {t("cta.button")}
@@ -1248,7 +1248,7 @@ function FinalCTA() {
                 <Button
                   size="lg"
                   variant="outline"
-                  onClick={() => setAppView("login")}
+                  onClick={() => router.push("/register")}
                   className="h-12 border-border/70 bg-background/40 px-8 text-sm backdrop-blur"
                 >
                   {t("cta.secondary")}
