@@ -213,3 +213,21 @@ Stage Summary:
 - 4 new React Query hooks ready
 - Admin store now capabilities-driven
 - Clean capability reset on logout
+---
+Task ID: hotfix-1
+Agent: main
+Task: Fix landing page buttons not navigating — all CTA/signin/signup buttons were dead
+
+Work Log:
+- Identified root cause: Phase 2 used setAppView() store-based view routing, Phase 3 switched to file-based routing, but landing page still called setAppView("login") which nothing consumed
+- Replaced all 8 setAppView("login") calls in landing-page.tsx with router.push("/login") or router.push("/register")
+- Affected components: NavBar (4 buttons), Hero (2 CTAs), FinalCTA (2 CTAs)
+- Removed useUi import, added useRouter from next/navigation
+- Lint: clean (0 errors, 0 warnings)
+- Agent Browser verified: all buttons navigate correctly to /login and /register
+- Commit: f1e569a, pushed to GitHub
+
+Stage Summary:
+- Critical UX bug fixed: all landing page buttons now navigate to real routes
+- "Sign in" / "Entrar" → /login
+- "Start Building" / signup CTAs → /register
