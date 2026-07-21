@@ -16,7 +16,6 @@ import {
   Code2,
   KeyRound,
   Webhook,
-  Store as StoreIcon,
   Settings,
   LifeBuoy,
   Receipt,
@@ -27,6 +26,19 @@ import {
   Activity,
   Cpu,
   Gauge,
+  Wallet2,
+  Send,
+  CreditCard,
+  PiggyBank,
+  BookOpen,
+  Briefcase,
+  TrendingUp,
+  AlertTriangle,
+  HandCoins,
+  Lock,
+  CircleDollarSign,
+  FileCheck,
+  Scale,
 } from "lucide-react";
 
 export interface NavItem {
@@ -36,8 +48,8 @@ export interface NavItem {
   tKey?: string;
   icon: LucideIcon;
   badge?: string;
-  /** Real route path for navigation, e.g. "/money" */
-  route?: string;
+  /** Real route path for navigation */
+  route: string;
 }
 
 export interface NavSection {
@@ -48,11 +60,65 @@ export interface NavSection {
   items: NavItem[];
 }
 
-export const merchantNav: NavSection[] = [
+export type ProductArea = "commerce" | "banking" | "advisory" | "admin";
+
+export interface ProductConfig {
+  id: ProductArea;
+  label: string;
+  tKey?: string;
+  /** Accent gradient: from/to */
+  accentFrom: string;
+  accentTo: string;
+  /** Text color for accent */
+  accentText: string;
+  /** Route prefix for this product */
+  routePrefix: string;
+}
+
+export const PRODUCT_AREAS: ProductConfig[] = [
+  {
+    id: "commerce",
+    label: "Commerce",
+    tKey: "product.commerce",
+    accentFrom: "from-primary",
+    accentTo: "to-primary/40",
+    accentText: "text-primary",
+    routePrefix: "/commerce",
+  },
+  {
+    id: "banking",
+    label: "Banking",
+    tKey: "product.banking",
+    accentFrom: "from-emerald-500",
+    accentTo: "to-emerald-500/40",
+    accentText: "text-emerald-400",
+    routePrefix: "/banking",
+  },
+  {
+    id: "advisory",
+    label: "Advisory",
+    tKey: "product.advisory",
+    accentFrom: "from-amber-500",
+    accentTo: "to-amber-500/40",
+    accentText: "text-amber-400",
+    routePrefix: "/advisory",
+  },
+  {
+    id: "admin",
+    label: "Admin",
+    tKey: "product.admin",
+    accentFrom: "from-rose-500",
+    accentTo: "to-rose-500/40",
+    accentText: "text-rose-400",
+    routePrefix: "/admin",
+  },
+];
+
+export const commerceNav: NavSection[] = [
   {
     id: "overview", label: "Overview", tKey: "sec.overview",
     items: [
-      { id: "dashboard", label: "Dashboard", tKey: "nav.dashboard", icon: LayoutDashboard, route: "/" },
+      { id: "dashboard", label: "Dashboard", tKey: "nav.dashboard", icon: LayoutDashboard, route: "/commerce/overview" },
       { id: "analytics", label: "Analytics", tKey: "nav.analytics", icon: BarChart3, route: "/insights" },
       { id: "risk", label: "Risk Center", tKey: "nav.risk", icon: ShieldCheck, route: "/risk" },
     ],
@@ -60,29 +126,30 @@ export const merchantNav: NavSection[] = [
   {
     id: "money", label: "Money Movement", tKey: "sec.money",
     items: [
-      { id: "payments", label: "Payments", tKey: "nav.payments", icon: Receipt, route: "/money" },
-      { id: "wallets", label: "Wallets", tKey: "nav.wallets", icon: Wallet, route: "/money" },
-      { id: "fx", label: "FX", tKey: "nav.fx", icon: ArrowLeftRight, route: "/money" },
-      { id: "treasury", label: "Treasury", tKey: "nav.treasury", icon: Banknote, route: "/money" },
+      { id: "payments", label: "Payments", tKey: "nav.payments", icon: Receipt, route: "/commerce/payments" },
+      { id: "wallets", label: "Wallets", tKey: "nav.wallets", icon: Wallet, route: "/commerce/wallets" },
+      { id: "settlements", label: "Settlements", tKey: "nav.settlements", icon: PiggyBank, route: "/commerce/settlements" },
+      { id: "payouts", label: "Payouts", tKey: "nav.payouts", icon: Send, route: "/commerce/payouts" },
     ],
   },
   {
     id: "commerce", label: "Commerce", tKey: "sec.commerce",
     items: [
-      { id: "stores", label: "Stores", tKey: "nav.stores", icon: Store, route: "/commerce" },
-      { id: "products", label: "Products", tKey: "nav.products", icon: Package, route: "/commerce" },
-      { id: "customers", label: "Customers", tKey: "nav.customers", icon: Users, route: "/commerce" },
-      { id: "subscriptions", label: "Subscriptions", tKey: "nav.subscriptions", icon: Repeat, route: "/commerce" },
-      { id: "payment-links", label: "Payment Links", tKey: "nav.paymentLinks", icon: Link2, route: "/commerce" },
-      { id: "invoices", label: "Invoices", tKey: "nav.invoices", icon: FileText, route: "/commerce" },
+      { id: "stores", label: "Stores", tKey: "nav.stores", icon: Store, route: "/commerce/stores" },
+      { id: "products", label: "Products", tKey: "nav.products", icon: Package, route: "/commerce/products" },
+      { id: "customers", label: "Customers", tKey: "nav.customers", icon: Users, route: "/commerce/customers" },
+      { id: "subscriptions", label: "Subscriptions", tKey: "nav.subscriptions", icon: Repeat, route: "/commerce/subscriptions" },
+      { id: "payment-links", label: "Payment Links", tKey: "nav.paymentLinks", icon: Link2, route: "/commerce/payment-links" },
+      { id: "invoices", label: "Invoices", tKey: "nav.invoices", icon: FileText, route: "/commerce/invoices" },
     ],
   },
   {
     id: "developers", label: "Developers", tKey: "sec.developers",
     items: [
-      { id: "developers", label: "Developers", tKey: "nav.developers", icon: Code2, route: "/developers" },
-      { id: "api-keys", label: "API Keys", tKey: "nav.apiKeys", icon: KeyRound, route: "/developers" },
-      { id: "webhooks", label: "Webhooks", tKey: "nav.webhooks", icon: Webhook, route: "/developers" },
+      { id: "developers", label: "Overview", tKey: "nav.developers", icon: Code2, route: "/developers/overview" },
+      { id: "api-keys", label: "API Keys", tKey: "nav.apiKeys", icon: KeyRound, route: "/developers/api-keys" },
+      { id: "webhooks", label: "Webhooks", tKey: "nav.webhooks", icon: Webhook, route: "/developers/webhooks" },
+      { id: "docs", label: "Docs", tKey: "nav.docs", icon: BookOpen, route: "/developers/docs" },
     ],
   },
   {
@@ -94,38 +161,103 @@ export const merchantNav: NavSection[] = [
   },
 ];
 
+export const bankingNav: NavSection[] = [
+  {
+    id: "banking-overview", label: "Overview", tKey: "sec.overview",
+    items: [
+      { id: "banking-dashboard", label: "Dashboard", tKey: "nav.dashboard", icon: LayoutDashboard, route: "/banking/overview" },
+      { id: "banking-accounts", label: "Accounts", tKey: "nav.accounts", icon: Landmark, route: "/banking/accounts" },
+      { id: "banking-transactions", label: "Transactions", tKey: "nav.transactions", icon: CreditCard, route: "/banking/transactions" },
+    ],
+  },
+  {
+    id: "banking-treasury", label: "Treasury", tKey: "sec.treasury",
+    items: [
+      { id: "banking-fx", label: "FX", tKey: "nav.fx", icon: ArrowLeftRight, route: "/banking/fx" },
+      { id: "banking-liquidity", label: "Liquidity", tKey: "nav.liquidity", icon: CircleDollarSign, route: "/banking/liquidity" },
+      { id: "banking-compliance", label: "Compliance", tKey: "nav.compliance", icon: FileCheck, route: "/banking/compliance" },
+    ],
+  },
+  {
+    id: "banking-lending", label: "Lending", tKey: "sec.lending",
+    items: [
+      { id: "banking-credit", label: "Credit", tKey: "nav.credit", icon: Briefcase, route: "/banking/credit" },
+      { id: "banking-portfolio", label: "Portfolio", tKey: "nav.portfolio", icon: TrendingUp, route: "/banking/portfolio" },
+    ],
+  },
+];
+
+export const advisoryNav: NavSection[] = [
+  {
+    id: "advisory-overview", label: "Overview", tKey: "sec.overview",
+    items: [
+      { id: "advisory-dashboard", label: "Dashboard", tKey: "nav.dashboard", icon: LayoutDashboard, route: "/advisory/overview" },
+      { id: "advisory-insights", label: "Insights", tKey: "nav.insights", icon: BarChart3, route: "/advisory/insights" },
+    ],
+  },
+  {
+    id: "advisory-risk", label: "Risk & Compliance", tKey: "sec.riskCompliance",
+    items: [
+      { id: "advisory-risk-assessment", label: "Risk Assessment", tKey: "nav.riskAssessment", icon: Scale, route: "/advisory/risk-assessment" },
+      { id: "advisory-alerts", label: "Alerts", tKey: "nav.alerts", icon: AlertTriangle, route: "/advisory/alerts" },
+      { id: "advisory-recommendations", label: "Recommendations", tKey: "nav.recommendations", icon: TrendingUp, route: "/advisory/recommendations" },
+    ],
+  },
+  {
+    id: "advisory-reports", label: "Reports", tKey: "sec.reports",
+    items: [
+      { id: "advisory-reports-overview", label: "Reports", tKey: "nav.reports", icon: FileText, route: "/advisory/reports" },
+      { id: "advisory-audit", label: "Audit Log", tKey: "nav.auditLog", icon: Lock, route: "/advisory/audit" },
+    ],
+  },
+];
+
 export const adminNav: NavSection[] = [
   {
     id: "platform", label: "Platform", tKey: "sec.platform",
     items: [
-      { id: "admin-dashboard", label: "Overview", tKey: "nav.adminDashboard", icon: LayoutDashboard },
-      { id: "admin-merchants", label: "Merchants", tKey: "nav.adminMerchants", icon: Building2 },
-      { id: "admin-kyc", label: "KYC Queue", tKey: "nav.adminKyc", icon: ScrollText, badge: "7" },
-      { id: "admin-treasury", label: "Treasury", tKey: "nav.adminTreasury", icon: Landmark },
-      { id: "admin-revenue", label: "Revenue", tKey: "nav.adminRevenue", icon: Banknote },
+      { id: "admin-dashboard", label: "Overview", tKey: "nav.adminDashboard", icon: LayoutDashboard, route: "/admin" },
+      { id: "admin-merchants", label: "Merchants", tKey: "nav.adminMerchants", icon: Building2, route: "/admin/commerce/merchants" },
+      { id: "admin-kyc", label: "KYC Queue", tKey: "nav.adminKyc", icon: ScrollText, route: "/admin/kyc" },
+      { id: "admin-revenue", label: "Revenue", tKey: "nav.adminRevenue", icon: Banknote, route: "/admin/revenue" },
     ],
   },
   {
     id: "ops", label: "Operations", tKey: "sec.ops",
     items: [
-      { id: "admin-gateways", label: "Gateways", tKey: "nav.adminGateways", icon: Server },
-      { id: "admin-risk", label: "Risk", tKey: "nav.adminRisk", icon: ShieldCheck },
-      { id: "admin-analytics", label: "Platform Analytics", tKey: "nav.adminAnalytics", icon: BarChart3 },
-      { id: "admin-support", label: "Support", tKey: "nav.adminSupport", icon: LifeBuoy },
+      { id: "admin-payouts", label: "Payouts", tKey: "nav.payouts", icon: HandCoins, route: "/admin/commerce/payouts" },
+      { id: "admin-settlements", label: "Settlements", tKey: "nav.settlements", icon: PiggyBank, route: "/admin/commerce/settlements" },
+      { id: "admin-gateways", label: "Gateways", tKey: "nav.adminGateways", icon: Server, route: "/admin/commerce/gateways" },
+      { id: "admin-risk", label: "Risk", tKey: "nav.adminRisk", icon: ShieldCheck, route: "/admin/risk" },
     ],
   },
   {
     id: "infra", label: "Infrastructure", tKey: "sec.infra",
     items: [
-      { id: "admin-health", label: "System Health", tKey: "nav.adminHealth", icon: Gauge },
-      { id: "admin-workers", label: "Workers", tKey: "nav.adminWorkers", icon: Cpu },
-      { id: "admin-queues", label: "Queues", tKey: "nav.adminQueues", icon: Activity },
-      { id: "admin-logs", label: "Logs", tKey: "nav.adminLogs", icon: FileText },
-      { id: "admin-flags", label: "Feature Flags", tKey: "nav.adminFlags", icon: Flag },
-      { id: "admin-compliance", label: "Compliance", tKey: "nav.adminCompliance", icon: ShieldCheck },
+      { id: "admin-health", label: "System Health", tKey: "nav.adminHealth", icon: Gauge, route: "/admin/system/health" },
+      { id: "admin-workers", label: "Workers", tKey: "nav.adminWorkers", icon: Cpu, route: "/admin/system/workers" },
+      { id: "admin-queues", label: "Queues", tKey: "nav.adminQueues", icon: Activity, route: "/admin/system/queues" },
+      { id: "admin-logs", label: "Logs", tKey: "nav.adminLogs", icon: FileText, route: "/admin/system/logs" },
+      { id: "admin-flags", label: "Feature Flags", tKey: "nav.adminFlags", icon: Flag, route: "/admin/system/feature-flags" },
     ],
   },
 ];
+
+/** Map from product area to its nav sections */
+export const NAV_MAP: Record<ProductArea, NavSection[]> = {
+  commerce: commerceNav,
+  banking: bankingNav,
+  advisory: advisoryNav,
+  admin: adminNav,
+};
+
+/** Get the product area from a pathname */
+export function getProductAreaFromPath(pathname: string): ProductArea {
+  if (pathname.startsWith("/admin")) return "admin";
+  if (pathname.startsWith("/banking")) return "banking";
+  if (pathname.startsWith("/advisory")) return "advisory";
+  return "commerce";
+}
 
 export const PAYMENT_METHODS = [
   { id: "visa", label: "Visa", color: "#1A1F71" },

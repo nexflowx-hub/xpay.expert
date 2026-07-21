@@ -1,21 +1,2 @@
-"use client";
-
-import dynamic from "next/dynamic";
-
-const StoresPage = dynamic(
-  () => import("@/components/merchant/stores"),
-  { loading: () => <PageSkeleton /> }
-);
-
-function PageSkeleton() {
-  return (
-    <div className="space-y-6 p-6">
-      <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-      <div className="h-64 animate-pulse rounded-lg bg-muted" />
-    </div>
-  );
-}
-
-export default function CommercePageRoute() {
-  return <StoresPageRoute />;
-}
+import { redirect } from "next/navigation";
+export default function CommerceRedirect() { redirect("/commerce/overview"); }

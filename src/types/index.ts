@@ -26,7 +26,6 @@ export interface User {
 
 export interface AuthSession {
   accessToken: string;
-  refreshToken: string;
   expiresAt: number; // epoch ms
   user: User;
 }
@@ -89,17 +88,18 @@ export interface ApiResponse<T> {
 export type CurrencyCode = "EUR" | "USD" | "BRL" | "USDT" | "GBP" | "BTC";
 
 export interface Wallet {
+  id: string;
   currency: CurrencyCode;
   balance: number;
   available: number;
   reserved: number;
-  type: "fiat" | "crypto" | "card";
-  // Optional fields for UI (may not come from API)
-  id?: string;
+  pending: number;
+  type: "fiat" | "crypto" | "card" | "settlement";
   label?: string;
   cardLast4?: string;
   changePct?: number;
   color?: string;
+  ledgerDomain?: string;
 }
 
 export interface WalletSummary {
@@ -121,9 +121,8 @@ export interface WalletMovement {
   direction: "in" | "out";
   status: string;
   createdAt: string;
-  // Optional fields for UI
   walletId?: string;
-  type?: "deposit" | "withdraw" | "swap" | "payment" | "fee" | "payout";
+  type?: "deposit" | "withdraw" | "swap" | "payment" | "fee" | "payout" | "settlement";
   reference?: string;
 }
 
@@ -191,7 +190,6 @@ export interface AnalyticsOverview {
     volumeMonth: number;
   };
   recentTransactions: Transaction[];
-  // Legacy fields (optional — kept for backwards compat with older components)
   revenue?: number;
   revenueChange?: number;
   volume?: number;
@@ -212,7 +210,7 @@ export interface AnalyticsOverview {
 
 // ---- Risk ----
 export interface RiskProfile {
-  score: number; // 0-100, lower is better
+  score: number;
   reservePct: number;
   chargebackRate: number;
   trustStatus: "trusted" | "standard" | "elevated" | "high_risk";
@@ -397,7 +395,6 @@ export interface Paginated<T> {
     total: number;
     pages: number;
   };
-  // Legacy fields (backwards compat)
   total?: number;
   page?: number;
   pageSize?: number;
@@ -420,11 +417,11 @@ export interface DataTableFilters {
   from?: string;
   to?: string;
   page?: number;
-  limit?: number;  // v3.1 uses 'limit' instead of 'pageSize'
-  pageSize?: number; // legacy
+  limit?: number;
+  pageSize?: number;
   sortBy?: string;
   sortDir?: "asc" | "desc";
-  reference?: string; // v3.1 uses 'reference' for search
+  reference?: string;
 }
 
 // ---- Phase 2: Bootstrap & Capabilities ----
@@ -487,7 +484,7 @@ export interface BootstrapModuleCard {
   status?: "active" | "coming_soon" | "requires_verification" | "provider_required" | "requires_higher_tier" | "sandbox_only";
 }
 
-export type CapabilityState = 
+export type CapabilityState =
   | "enabled"
   | "coming_soon"
   | "requires_verification"
@@ -597,7 +594,7 @@ export interface CreateApiKeyResponse {
   environment: string;
   scopes: string[];
   keyPreview: string;
-  fullKey: string; // only returned on creation
+  fullKey: string;
   storeId: string;
   createdAt: string;
 }
@@ -621,7 +618,7 @@ export interface CreateWebhookResponse {
   url: string;
   events: string[];
   status: string;
-  secret: string; // only on creation
+  secret: string;
   storeId?: string;
   createdAt: string;
 }
@@ -639,3 +636,183 @@ export interface UpdateStorePayload {
   currency?: CurrencyCode;
   status?: "active" | "paused" | "draft";
 }
+
+// ---- Phase 2: Settlements ----
+export interface Settlement {
+  id: string;
+  batch: string;
+  merchantId: string;
+  merchantName: string;
+  storeId?: string;
+  storeName?: string;
+  provider: string;
+  transactionCount: number;
+  gross: number;
+  currency: CurrencyCode;
+  providerFee: number;
+  xpayFee: number;
+  merchantNet: number;
+  providerAvailableDate: string;
+  status: "pending" | "available" | "released" | "processing";
+  createdAt: string;
+  releasedAt?: string;
+}
+
+export interface SettlementListResponse {
+  data: Settlement[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
+
+// ============================================================
+// Phase 3: Merchant Payout Types
+// ============================================================
+
+export type MerchantPayoutStatus =
+  | "pending_review"
+  | "fx_pending"
+  | "approved"
+  | "processing"
+  | "paid"
+  | "rejected"
+  | "cancelled";
+
+export type MerchantPayoutMethod =
+  | "SEPA_INSTANT"
+  | "PIX"
+  | "USDT_TRC20"
+  | "USDT_ERC20"
+  | "MANUAL";
+
+export type PixKeyType =
+  | "CPF"
+  | "CNPJ"
+  | "EMAIL"
+  | "PHONE"
+  | "EVP";
+
+export interface MerchantPayoutDestination {
+  method: MerchantPayoutMethod;
+  beneficiaryName: string;
+  country?: string;
+  // SEPA
+  iban?: string;
+  bic?: string;
+  bankName?: string;
+  paymentReference?: string;
+  // PIX
+  keyType?: PixKeyType;
+  keyValue?: string;
+  taxId?: string;
+  // Crypto
+  walletAddress?: string;
+  network?: string;
+  // Manual
+  instructions?: string;
+}
+
+export interface MerchantPayout {
+  id: string;
+  ledgerDomain: string;
+  ticketCode: string;
+  merchantId: string;
+  merchantName: string;
+  merchantEmail: string;
+  walletId: string;
+  sourceCurrency: CurrencyCode;
+  sourceAmount: number;
+  payoutCurrency: CurrencyCode;
+  payoutAmount: number;
+  method: MerchantPayoutMethod;
+  network: string;
+  destination: MerchantPayoutDestination;
+  beneficiaryName: string;
+  beneficiaryCountry: string;
+  status: MerchantPayoutStatus;
+  fxRequired: boolean;
+  fxStatus: string | null;
+  fxRate: number | null;
+  fxProvider: string | null;
+  fxReference: string | null;
+  reviewNote: string | null;
+  rejectionReason: string | null;
+  providerReference: string | null;
+  externalReference: string | null;
+  idempotencyKey: string;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt?: string | null;
+  approvedAt?: string | null;
+  processingAt?: string | null;
+  paidAt?: string | null;
+  rejectedAt?: string | null;
+  cancelledAt?: string | null;
+}
+
+export interface MerchantPayoutOptions {
+  methods: MerchantPayoutMethod[];
+  defaultCurrency: CurrencyCode;
+  minAmount: Record<CurrencyCode, number>;
+  maxAmount: Record<CurrencyCode, number>;
+  pixKeyTypes: PixKeyType[];
+}
+
+export interface MerchantPayoutValidation {
+  sourceCurrency: CurrencyCode;
+  sourceAmount: number;
+  payoutCurrency: CurrencyCode;
+  payoutAmount: number;
+  fxRequired: boolean;
+  fxStatus: string | null;
+  initialStatus: MerchantPayoutStatus;
+  availableAfterReservation: number;
+  destination: MerchantPayoutDestination;
+}
+
+export interface CreateMerchantPayoutPayload {
+  walletId: string;
+  sourceAmount: number;
+  method: MerchantPayoutMethod;
+  destination: MerchantPayoutDestination;
+}
+
+export interface MerchantPayoutListResponse {
+  data: MerchantPayout[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
+
+export interface AdminFxQuotePayload {
+  payoutAmount: number;
+  fxRate: number;
+  fxProvider: string;
+  fxReference: string;
+  note?: string;
+}
+
+export interface AdminProcessingPayload {
+  providerReference: string;
+  externalReference?: string;
+  note?: string;
+}
+
+export interface AdminPaidPayload {
+  providerReference?: string;
+  externalReference?: string;
+  note: string;
+}
+
+export interface AdminRejectPayload {
+  reason: string;
+}
+
+// ---- Admin Capability ----
+export type AdminCapabilityStatus = "loading" | "true" | "false" | "unknown";

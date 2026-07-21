@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useAdminStore } from "@/stores/admin";
 import {
   authEndpoints,
   platformEndpoints,
@@ -19,6 +20,13 @@ import {
   paymentLinkEndpoints,
   invoiceEndpoints,
   subscriptionEndpoints,
+  settlementEndpoints,
+  merchantPayoutEndpoints,
+  adminMerchantPayoutEndpoints,
+  adminSettlementEndpoints,
+  adminMerchantEndpoints,
+  adminKycEndpoints,
+  adminSystemEndpoints,
 } from "@/lib/api/endpoints";
 import type {
   CreateStorePayload,
@@ -27,44 +35,52 @@ import type {
   CreateWebhookPayload,
   UpdateWebhookPayload,
   DataTableFilters,
+  CreateMerchantPayoutPayload,
+  AdminFxQuotePayload,
+  AdminProcessingPayload,
+  AdminPaidPayload,
+  AdminRejectPayload,
 } from "@/types";
 
 // Query key factory
 export const queryKeys = {
-  // Auth
   authMe: ["auth", "me"] as const,
-  // Platform
   platformBootstrap: ["platform", "bootstrap"] as const,
-  // Profile
   merchantProfile: ["merchant", "profile"] as const,
-  // Stores
   stores: ["stores"] as const,
   storeDetail: (id: string) => ["stores", id] as const,
-  // API Keys
   apiKeys: ["api-keys"] as const,
-  // Webhooks
   webhooks: ["webhooks"] as const,
-  // Wallets
   wallets: ["wallets"] as const,
-  // Transactions
+  walletMovements: ["wallets", "movements"] as const,
   transactions: (filters?: DataTableFilters) => ["transactions", filters] as const,
   transactionStats: ["transactions", "stats"] as const,
-  // Analytics
   analyticsOverview: ["analytics", "overview"] as const,
-  // Risk
   riskProfile: ["risk", "profile"] as const,
-  // Treasury
   treasuryOverview: ["treasury", "overview"] as const,
-  // Customers
   customers: (filters?: DataTableFilters) => ["customers", filters] as const,
-  // Products
   products: ["products"] as const,
-  // Payment Links
   paymentLinks: ["payment-links"] as const,
-  // Invoices
   invoices: ["invoices"] as const,
-  // Subscriptions
   subscriptions: ["subscriptions"] as const,
+  // Settlements
+  settlements: (filters?: DataTableFilters) => ["settlements", filters] as const,
+  // Merchant Payouts
+  merchantPayouts: (filters?: { status?: string; limit?: number; offset?: number }) => ["merchant", "payouts", filters] as const,
+  merchantPayout: (id: string) => ["merchant", "payouts", id] as const,
+  merchantPayoutOptions: ["merchant", "payouts", "options"] as const,
+  // Admin Payouts
+  adminPayouts: (filters?: { status?: string; merchantId?: string; method?: string; limit?: number; offset?: number }) => ["admin", "payouts", filters] as const,
+  adminPayout: (id: string) => ["admin", "payouts", id] as const,
+  // Admin Settlements
+  adminSettlements: (filters?: DataTableFilters) => ["admin", "settlements", filters] as const,
+  // Admin Merchants
+  adminMerchants: ["admin", "merchants"] as const,
+  // Admin KYC
+  adminKyc: ["admin", "kyc"] as const,
+  // Admin System
+  adminHealth: ["admin", "health"] as const,
+  adminRevenue: ["admin", "revenue"] as const,
 };
 
 const defaultOptions = {
@@ -80,7 +96,7 @@ export function useAuthMe() {
     queryKey: queryKeys.authMe,
     queryFn: () => authEndpoints.me(),
     ...defaultOptions,
-    enabled: false, // Only called manually by auth store hydrate
+    enabled: false,
   });
 }
 
@@ -119,7 +135,7 @@ export function useUpdateMerchantProfile() {
       qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
       toast.success("Profile updated successfully");
     },
-    onError: (err: any) => {
+    onError: (err: { message?: string }) => {
       toast.error(err?.message || "Failed to update profile");
     },
   });
@@ -144,7 +160,7 @@ export function useCreateStore() {
       qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
       toast.success("Store created successfully");
     },
-    onError: (err: any) => {
+    onError: (err: { message?: string }) => {
       toast.error(err?.message || "Failed to create store");
     },
   });
@@ -169,7 +185,7 @@ export function useUpdateStore(id: string) {
       qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
       toast.success("Store updated");
     },
-    onError: (err: any) => {
+    onError: (err: { message?: string }) => {
       toast.error(err?.message || "Failed to update store");
     },
   });
@@ -193,7 +209,7 @@ export function useCreateApiKey() {
       qc.invalidateQueries({ queryKey: queryKeys.apiKeys });
       toast.success("API Key created — copy it now, it won't be shown again");
     },
-    onError: (err: any) => {
+    onError: (err: { message?: string }) => {
       toast.error(err?.message || "Failed to create API Key");
     },
   });
@@ -207,7 +223,7 @@ export function useDeleteApiKey() {
       qc.invalidateQueries({ queryKey: queryKeys.apiKeys });
       toast.success("API Key revoked");
     },
-    onError: (err: any) => {
+    onError: (err: { message?: string }) => {
       toast.error(err?.message || "Failed to revoke API Key");
     },
   });
@@ -231,7 +247,7 @@ export function useCreateWebhook() {
       qc.invalidateQueries({ queryKey: queryKeys.webhooks });
       toast.success("Webhook created — save the secret now");
     },
-    onError: (err: any) => {
+    onError: (err: { message?: string }) => {
       toast.error(err?.message || "Failed to create webhook");
     },
   });
@@ -245,7 +261,7 @@ export function useUpdateWebhook(id: string) {
       qc.invalidateQueries({ queryKey: queryKeys.webhooks });
       toast.success("Webhook updated");
     },
-    onError: (err: any) => {
+    onError: (err: { message?: string }) => {
       toast.error(err?.message || "Failed to update webhook");
     },
   });
@@ -259,13 +275,13 @@ export function useDeleteWebhook() {
       qc.invalidateQueries({ queryKey: queryKeys.webhooks });
       toast.success("Webhook deleted");
     },
-    onError: (err: any) => {
+    onError: (err: { message?: string }) => {
       toast.error(err?.message || "Failed to delete webhook");
     },
   });
 }
 
-// ---- Wallets (Read Only) ----
+// ---- Wallets ----
 
 export function useWallets() {
   return useQuery({
@@ -369,6 +385,255 @@ export function useSubscriptions() {
   return useQuery({
     queryKey: queryKeys.subscriptions,
     queryFn: () => subscriptionEndpoints.list(),
+    ...defaultOptions,
+  });
+}
+
+// ---- Settlements ----
+
+export function useSettlements(filters?: DataTableFilters) {
+  return useQuery({
+    queryKey: queryKeys.settlements(filters),
+    queryFn: () => settlementEndpoints.list(filters),
+    ...defaultOptions,
+  });
+}
+
+// ---- Merchant Payout Options ----
+
+export function useMerchantPayoutOptions() {
+  return useQuery({
+    queryKey: queryKeys.merchantPayoutOptions,
+    queryFn: () => merchantPayoutEndpoints.options(),
+    ...defaultOptions,
+    retry: 0,
+  });
+}
+
+// ---- Validate Merchant Payout ----
+
+export function useValidateMerchantPayout() {
+  return useMutation({
+    mutationFn: (payload: CreateMerchantPayoutPayload) =>
+      merchantPayoutEndpoints.validate(payload),
+  });
+}
+
+// ---- Create Merchant Payout ----
+
+export function useCreateMerchantPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ payload, idempotencyKey }: { payload: CreateMerchantPayoutPayload; idempotencyKey: string }) =>
+      merchantPayoutEndpoints.create(payload, idempotencyKey),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.wallets });
+      qc.invalidateQueries({ queryKey: queryKeys.merchantPayouts() });
+      qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
+      qc.invalidateQueries({ queryKey: queryKeys.treasuryOverview });
+    },
+  });
+}
+
+// ---- Merchant Payouts List ----
+
+export function useMerchantPayouts(filters?: { status?: string; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: queryKeys.merchantPayouts(filters),
+    queryFn: () => merchantPayoutEndpoints.list(filters),
+    ...defaultOptions,
+  });
+}
+
+// ---- Merchant Payout Detail ----
+
+export function useMerchantPayout(id: string) {
+  return useQuery({
+    queryKey: queryKeys.merchantPayout(id),
+    queryFn: () => merchantPayoutEndpoints.get(id),
+    ...defaultOptions,
+    enabled: !!id,
+  });
+}
+
+// ---- Cancel Merchant Payout ----
+
+export function useCancelMerchantPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      merchantPayoutEndpoints.cancel(id, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.wallets });
+      qc.invalidateQueries({ queryKey: queryKeys.merchantPayouts() });
+      qc.invalidateQueries({ queryKey: queryKeys.treasuryOverview });
+      toast.success("Payout cancelled");
+    },
+    onError: (err: { message?: string; code?: string }) => {
+      toast.error(err?.message || err?.code || "Failed to cancel payout");
+    },
+  });
+}
+
+// ---- Admin Capability (Hook) ----
+
+export function useAdminCapability() {
+  const store = useAdminStore();
+
+  return {
+    isPlatformAdmin: store.isPlatformAdmin,
+    adminCapabilityStatus: store.adminCapabilityStatus,
+    checkAdminCapability: store.checkAdminCapability,
+  };
+}
+
+// ---- Admin Merchant Payouts ----
+
+export function useAdminMerchantPayouts(filters?: { status?: string; merchantId?: string; method?: string; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: queryKeys.adminPayouts(filters),
+    queryFn: () => adminMerchantPayoutEndpoints.list(filters),
+    ...defaultOptions,
+  });
+}
+
+export function useAdminMerchantPayout(id: string) {
+  return useQuery({
+    queryKey: queryKeys.adminPayout(id),
+    queryFn: () => adminMerchantPayoutEndpoints.get(id),
+    ...defaultOptions,
+    enabled: !!id,
+  });
+}
+
+export function useQuoteMerchantPayoutFx() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: AdminFxQuotePayload }) =>
+      adminMerchantPayoutEndpoints.quoteFx(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+      toast.success("FX quote applied");
+    },
+    onError: (err: { message?: string; code?: string }) => {
+      toast.error(err?.message || err?.code || "Failed to quote FX");
+    },
+  });
+}
+
+export function useApproveMerchantPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string }) =>
+      adminMerchantPayoutEndpoints.approve(id, note),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+      toast.success("Payout approved");
+    },
+    onError: (err: { message?: string; code?: string }) => {
+      toast.error(err?.message || err?.code || "Failed to approve payout");
+    },
+  });
+}
+
+export function useProcessMerchantPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: AdminProcessingPayload }) =>
+      adminMerchantPayoutEndpoints.processing(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+      toast.success("Payout marked as processing");
+    },
+    onError: (err: { message?: string; code?: string }) => {
+      toast.error(err?.message || err?.code || "Failed to process payout");
+    },
+  });
+}
+
+export function useMarkMerchantPayoutPaid() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: AdminPaidPayload }) =>
+      adminMerchantPayoutEndpoints.paid(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+      qc.invalidateQueries({ queryKey: queryKeys.wallets });
+      qc.invalidateQueries({ queryKey: queryKeys.treasuryOverview });
+      toast.success("Payout marked as paid");
+    },
+    onError: (err: { message?: string; code?: string }) => {
+      toast.error(err?.message || err?.code || "Failed to mark payout as paid");
+    },
+  });
+}
+
+export function useRejectMerchantPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: AdminRejectPayload }) =>
+      adminMerchantPayoutEndpoints.reject(id, payload),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+      qc.invalidateQueries({ queryKey: queryKeys.wallets });
+      qc.invalidateQueries({ queryKey: queryKeys.treasuryOverview });
+      toast.success("Payout rejected");
+    },
+    onError: (err: { message?: string; code?: string }) => {
+      toast.error(err?.message || err?.code || "Failed to reject payout");
+    },
+  });
+}
+
+// ---- Admin Settlements ----
+
+export function useAdminSettlements(filters?: DataTableFilters) {
+  return useQuery({
+    queryKey: queryKeys.adminSettlements(filters),
+    queryFn: () => adminSettlementEndpoints.list(filters),
+    ...defaultOptions,
+  });
+}
+
+// ---- Admin Merchants ----
+
+export function useAdminMerchants() {
+  return useQuery({
+    queryKey: queryKeys.adminMerchants,
+    queryFn: () => adminMerchantEndpoints.list(),
+    ...defaultOptions,
+  });
+}
+
+// ---- Admin KYC ----
+
+export function useAdminKyc() {
+  return useQuery({
+    queryKey: queryKeys.adminKyc,
+    queryFn: () => adminKycEndpoints.queue(),
+    ...defaultOptions,
+  });
+}
+
+// ---- Admin System ----
+
+export function useAdminHealth() {
+  return useQuery({
+    queryKey: queryKeys.adminHealth,
+    queryFn: () => adminSystemEndpoints.health(),
+    ...defaultOptions,
+  });
+}
+
+export function useAdminRevenue() {
+  return useQuery({
+    queryKey: queryKeys.adminRevenue,
+    queryFn: () => adminSystemEndpoints.revenue(),
     ...defaultOptions,
   });
 }

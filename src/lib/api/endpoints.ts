@@ -1,6 +1,6 @@
 /**
  * XPay.Expert — API Endpoint Functions
- * 
+ *
  * All endpoints use the real backend.
  * Public endpoints use publicApi (no JWT).
  * Private endpoints use privateApi (with JWT).
@@ -39,7 +39,17 @@ import type {
   PaymentLink,
   Invoice,
   Subscription,
-  AuthEnvelope,
+  Settlement,
+  SettlementListResponse,
+  MerchantPayout,
+  MerchantPayoutOptions,
+  MerchantPayoutValidation,
+  CreateMerchantPayoutPayload,
+  MerchantPayoutListResponse,
+  AdminFxQuotePayload,
+  AdminProcessingPayload,
+  AdminPaidPayload,
+  AdminRejectPayload,
 } from "@/types";
 
 // ---- Auth (Public) ----
@@ -182,7 +192,7 @@ export const webhookEndpoints = {
     }),
 };
 
-// ---- Wallets (Private - Read Only) ----
+// ---- Wallets (Private) ----
 
 export const walletEndpoints = {
   list: () =>
@@ -306,5 +316,162 @@ export const subscriptionEndpoints = {
     privateRequestData<Subscription[]>({
       method: "GET",
       url: "subscriptions",
+    }),
+};
+
+// ---- Settlements (Private) ----
+
+export const settlementEndpoints = {
+  list: (filters?: DataTableFilters) =>
+    privateRequestData<SettlementListResponse>({
+      method: "GET",
+      url: "merchant/settlements",
+      params: filters,
+    }),
+};
+
+// ---- Merchant Payouts (Private) ----
+
+export const merchantPayoutEndpoints = {
+  options: () =>
+    privateRequestData<MerchantPayoutOptions>({
+      method: "GET",
+      url: "merchant/payouts/options",
+    }),
+
+  validate: (payload: CreateMerchantPayoutPayload) =>
+    privateRequestData<MerchantPayoutValidation>({
+      method: "POST",
+      url: "merchant/payouts/validate",
+      data: payload,
+    }),
+
+  create: (payload: CreateMerchantPayoutPayload, idempotencyKey: string) =>
+    privateRequestData<MerchantPayout>({
+      method: "POST",
+      url: "merchant/payouts",
+      data: payload,
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    }),
+
+  list: (filters?: { status?: string; limit?: number; offset?: number }) =>
+    privateRequestData<MerchantPayoutListResponse>({
+      method: "GET",
+      url: "merchant/payouts",
+      params: filters,
+    }),
+
+  get: (id: string) =>
+    privateRequestData<MerchantPayout>({
+      method: "GET",
+      url: `merchant/payouts/${id}`,
+    }),
+
+  cancel: (id: string, reason?: string) =>
+    privateRequestData<MerchantPayout>({
+      method: "POST",
+      url: `merchant/payouts/${id}/cancel`,
+      data: reason ? { reason } : undefined,
+    }),
+};
+
+// ---- Admin Merchant Payouts (Private - Admin) ----
+
+export const adminMerchantPayoutEndpoints = {
+  list: (filters?: { status?: string; merchantId?: string; method?: string; limit?: number; offset?: number }) =>
+    privateRequestData<MerchantPayoutListResponse>({
+      method: "GET",
+      url: "admin/merchant-payouts",
+      params: filters,
+    }),
+
+  get: (id: string) =>
+    privateRequestData<MerchantPayout>({
+      method: "GET",
+      url: `admin/merchant-payouts/${id}`,
+    }),
+
+  quoteFx: (id: string, payload: AdminFxQuotePayload) =>
+    privateRequestData<MerchantPayout>({
+      method: "POST",
+      url: `admin/merchant-payouts/${id}/fx-quote`,
+      data: payload,
+    }),
+
+  approve: (id: string, note?: string) =>
+    privateRequestData<MerchantPayout>({
+      method: "POST",
+      url: `admin/merchant-payouts/${id}/approve`,
+      data: note ? { note } : undefined,
+    }),
+
+  processing: (id: string, payload: AdminProcessingPayload) =>
+    privateRequestData<MerchantPayout>({
+      method: "POST",
+      url: `admin/merchant-payouts/${id}/processing`,
+      data: payload,
+    }),
+
+  paid: (id: string, payload: AdminPaidPayload) =>
+    privateRequestData<MerchantPayout>({
+      method: "POST",
+      url: `admin/merchant-payouts/${id}/paid`,
+      data: payload,
+    }),
+
+  reject: (id: string, payload: AdminRejectPayload) =>
+    privateRequestData<MerchantPayout>({
+      method: "POST",
+      url: `admin/merchant-payouts/${id}/reject`,
+      data: payload,
+    }),
+};
+
+// ---- Admin Settlements (Private - Admin) ----
+
+export const adminSettlementEndpoints = {
+  list: (filters?: DataTableFilters) =>
+    privateRequestData<SettlementListResponse>({
+      method: "GET",
+      url: "admin/settlements",
+      params: filters,
+    }),
+};
+
+// ---- Admin Merchants (Private - Admin) ----
+
+export const adminMerchantEndpoints = {
+  list: () =>
+    privateRequestData<Paginated<import("@/types").AdminMerchant>>({
+      method: "GET",
+      url: "admin/merchants",
+    }),
+};
+
+// ---- Admin KYC (Private - Admin) ----
+
+export const adminKycEndpoints = {
+  queue: () =>
+    privateRequestData<import("@/types").KycReview[]>({
+      method: "GET",
+      url: "admin/kyc",
+    }),
+};
+
+// ---- Admin System (Private - Admin) ----
+
+export const adminSystemEndpoints = {
+  health: () =>
+    privateRequestData<import("@/types").SystemHealth>({
+      method: "GET",
+      url: "admin/health",
+    }),
+
+  revenue: () =>
+    privateRequestData<{ total: number; series: { date: string; value: number }[] }>({
+      method: "GET",
+      url: "admin/revenue",
     }),
 };

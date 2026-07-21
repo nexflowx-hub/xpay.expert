@@ -45,13 +45,10 @@ interface AuthState {
 export const useAuth = create<AuthState>()(
   persist(
     (set, get) => {
-      // Client-side bootstrap
       if (typeof window !== "undefined") {
         migrateClientStorage();
-        // Register 401 handler from private client
         registerUnauthorizedHandler(() => {
           get().clearSession();
-          // Redirect to login
           if (typeof window !== "undefined" && window.location.pathname !== "/login") {
             window.location.href = "/login";
           }
@@ -85,7 +82,6 @@ export const useAuth = create<AuthState>()(
               tier: merchantData.tier,
             };
 
-            // Set token in private client
             setPrivateAccessToken(token);
 
             set({
@@ -166,7 +162,6 @@ export const useAuth = create<AuthState>()(
           const user = state.user;
 
           if (token && user) {
-            // Set token in private client immediately
             setPrivateAccessToken(token);
             set({
               authenticated: true,
@@ -175,7 +170,6 @@ export const useAuth = create<AuthState>()(
               sessionChecked: false,
             });
 
-            // Validate session server-side
             authEndpoints
               .me()
               .then((meUser) => {
@@ -191,10 +185,18 @@ export const useAuth = create<AuthState>()(
                   get().clearSession();
                 }
               })
-              .catch((err: any) => {
+              .catch((err: { status?: number }) => {
                 const status = err?.status;
-                if (status === 401 || status === 403) {
+                if (status === 401) {
+                  // 401: session invalid — clear and redirect
                   get().clearSession();
+                } else if (status === 403) {
+                  // 403: access denied — do NOT clear session
+                  set({
+                    sessionChecked: true,
+                    sessionStatus: "authenticated",
+                    networkError: false,
+                  });
                 } else {
                   // Network error — don't clear session
                   set({
@@ -229,14 +231,13 @@ export const useAuth = create<AuthState>()(
     },
     {
       name: XP_STORAGE_KEYS.auth,
-      version: 1,
+      version: 2,
       partialize: (s) => ({
         accessToken: s.accessToken,
         user: s.user,
         authenticated: s.authenticated,
       }),
       onRehydrateStorage: () => (state) => {
-        // When rehydrated, set the token in private client
         if (state?.accessToken) {
           setPrivateAccessToken(state.accessToken);
         }

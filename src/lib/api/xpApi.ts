@@ -63,7 +63,6 @@ function mapEnvelopeToSession(envelope: AuthEnvelope, email: string): AuthSessio
   };
   return {
     accessToken: token,
-    refreshToken: token, // v3.1 doesn't issue a separate refresh token yet
     expiresAt: Date.now() + 1000 * 60 * 60 * 8,
     user,
   };

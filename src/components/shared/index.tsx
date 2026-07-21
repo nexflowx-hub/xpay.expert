@@ -289,3 +289,93 @@ export function ErrorState({ message, onRetry }: { message?: string; onRetry?: (
     </div>
   );
 }
+
+// ---- StatusBadge ----
+export function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    succeeded: "bg-emerald-500/15 text-emerald-400",
+    paid: "bg-emerald-500/15 text-emerald-400",
+    active: "bg-emerald-500/15 text-emerald-400",
+    approved: "bg-blue-500/15 text-blue-400",
+    pending: "bg-amber-500/15 text-amber-400",
+    pending_review: "bg-amber-500/15 text-amber-400",
+    fx_pending: "bg-orange-500/15 text-orange-400",
+    processing: "bg-blue-500/15 text-blue-400",
+    failed: "bg-rose-500/15 text-rose-400",
+    rejected: "bg-rose-500/15 text-rose-400",
+    refunded: "bg-gray-500/15 text-gray-400",
+    cancelled: "bg-gray-500/15 text-gray-400",
+    draft: "bg-gray-500/15 text-gray-400",
+    inactive: "bg-gray-500/15 text-gray-400",
+    authorized: "bg-blue-500/15 text-blue-400",
+    disputed: "bg-rose-500/15 text-rose-400",
+    paused: "bg-amber-500/15 text-amber-400",
+    open: "bg-blue-500/15 text-blue-400",
+    overdue: "bg-rose-500/15 text-rose-400",
+    trialing: "bg-amber-500/15 text-amber-400",
+    available: "bg-emerald-500/15 text-emerald-400",
+    released: "bg-blue-500/15 text-blue-400",
+  };
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", map[status] || "bg-muted text-muted-foreground")}>
+      {status.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+// ---- MethodBadge ----
+export function MethodBadge({ method }: { method: string }) {
+  const map: Record<string, string> = {
+    SEPA_INSTANT: "bg-blue-500/15 text-blue-400",
+    PIX: "bg-emerald-500/15 text-emerald-400",
+    USDT_TRC20: "bg-violet-500/15 text-violet-400",
+    USDT_ERC20: "bg-violet-500/15 text-violet-400",
+    MANUAL: "bg-gray-500/15 text-gray-400",
+    visa: "bg-blue-500/15 text-blue-400",
+    mastercard: "bg-amber-500/15 text-amber-400",
+    pix: "bg-emerald-500/15 text-emerald-400",
+    mbway: "bg-emerald-500/15 text-emerald-400",
+    apple_pay: "bg-gray-500/15 text-gray-400",
+    google_pay: "bg-gray-500/15 text-gray-400",
+    crypto: "bg-violet-500/15 text-violet-400",
+    sepa: "bg-blue-500/15 text-blue-400",
+    wise: "bg-blue-500/15 text-blue-400",
+    amex: "bg-blue-500/15 text-blue-400",
+  };
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", map[method] || "bg-muted text-muted-foreground")}>
+      {method.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+// ---- CurrencyBadge ----
+const CURRENCY_FLAGS: Record<string, string> = {
+  EUR: "🇪🇺", USD: "🇺🇸", BRL: "🇧🇷", GBP: "🇬🇧", USDT: "◈", BTC: "◉",
+};
+export function CurrencyBadge({ currency }: { currency: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium">
+      <span>{CURRENCY_FLAGS[currency] || "💰"}</span>
+      {currency}
+    </span>
+  );
+}
+
+// ---- Sparkline (simple SVG mini chart) ----
+export function Sparkline({ data, color = "var(--primary)", height = 32, width = 120 }: { data: number[]; color?: string; height?: number; width?: number }) {
+  if (!data.length) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(" ");
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+      <polyline fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" points={points} />
+    </svg>
+  );
+}

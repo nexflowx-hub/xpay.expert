@@ -17,6 +17,7 @@ export function getPrivateAccessToken(): string | null {
 /**
  * Private API client — JWT is injected via request interceptor.
  * On 401: clears session and redirects to login (NO refresh token).
+ * On 403: does NOT clear session (access denied, not session issue).
  */
 export const privateApi: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

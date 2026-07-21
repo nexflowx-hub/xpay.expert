@@ -81,7 +81,7 @@ export default function AdminMerchantsPage() {
     });
   }, [data, search, statusFilter, kycFilter]);
 
-  React.useEffect(() => setPage(1), [search, statusFilter, kycFilter]);
+  React.useEffect(() => { setPage(1); }, [search, statusFilter, kycFilter]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 

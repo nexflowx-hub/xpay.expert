@@ -3,17 +3,17 @@
 import { create } from "zustand";
 import type { AppView } from "@/types";
 
+export type ProductArea = "commerce" | "banking" | "advisory" | "admin";
+
 interface UiState {
   appView: AppView;
-  activeMerchantView: string;
-  activeAdminView: string;
-  sidebarOpen: boolean; // mobile
-  sidebarCollapsed: boolean; // desktop
+  productArea: ProductArea;
+  sidebarOpen: boolean;
+  sidebarCollapsed: boolean;
   commandOpen: boolean;
   notificationsOpen: boolean;
   setAppView: (v: AppView) => void;
-  setMerchantView: (v: string) => void;
-  setAdminView: (v: string) => void;
+  setProductArea: (v: ProductArea) => void;
   setSidebarOpen: (v: boolean) => void;
   toggleSidebar: () => void;
   setCommandOpen: (v: boolean) => void;
@@ -22,15 +22,13 @@ interface UiState {
 
 export const useUi = create<UiState>((set) => ({
   appView: "landing",
-  activeMerchantView: "dashboard",
-  activeAdminView: "admin-dashboard",
+  productArea: "commerce" as ProductArea,
   sidebarOpen: false,
   sidebarCollapsed: false,
   commandOpen: false,
   notificationsOpen: false,
   setAppView: (v) => set({ appView: v }),
-  setMerchantView: (v) => set({ activeMerchantView: v, sidebarOpen: false }),
-  setAdminView: (v) => set({ activeAdminView: v, sidebarOpen: false }),
+  setProductArea: (v) => set({ productArea: v, sidebarOpen: false }),
   setSidebarOpen: (v) => set({ sidebarOpen: v }),
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setCommandOpen: (v) => set({ commandOpen: v }),

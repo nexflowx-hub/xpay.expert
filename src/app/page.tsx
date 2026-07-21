@@ -1,16 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/stores/auth";
 import { usePlatformBootstrap } from "@/hooks/use-queries";
 import { usePlatformStore } from "@/stores/platform";
 import { useWorkspaceStore } from "@/stores/workspace";
-import { DashboardShell } from "@/components/dashboard/shell";
-import { lazy, Suspense } from "react";
 
-const LaunchpadContent = lazy(() =>
-  import("@/components/merchant/dashboard")
+const LandingPage = dynamic(
+  () =>
+    import("@/components/landing/landing-page").then((m) => ({
+      default: m.LandingPage || (m.default as React.ComponentType),
+    })),
+  {
+    loading: () => <LandingFallback />,
+    ssr: false,
+  }
 );
 
 function LandingFallback() {
@@ -24,12 +30,12 @@ function LandingFallback() {
   );
 }
 
-function DashboardSkeleton() {
+function LoadingSpinner() {
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <p className="text-sm text-muted-foreground">Loading dashboard…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     </div>
   );
@@ -38,7 +44,7 @@ function DashboardSkeleton() {
 export default function RootPage() {
   const router = useRouter();
   const { authenticated, sessionChecked, sessionStatus, hydrated, hydrate, networkError } = useAuth();
-  const { data: bootstrap, isLoading: bootstrapLoading } = usePlatformBootstrap(authenticated && sessionChecked);
+  const { data: bootstrap } = usePlatformBootstrap(authenticated && sessionChecked);
   const setBootstrap = usePlatformStore((s) => s.setBootstrap);
   const setStores = useWorkspaceStore((s) => s.setStores);
 
@@ -57,23 +63,21 @@ export default function RootPage() {
     }
   }, [bootstrap, setBootstrap, setStores]);
 
+  // Redirect authenticated users to the dashboard
+  useEffect(() => {
+    if (authenticated && sessionChecked) {
+      router.replace("/commerce/overview");
+    }
+  }, [authenticated, sessionChecked, router]);
+
   // Still hydrating
   if (!hydrated || sessionStatus === "hydrating" || sessionStatus === "checking") {
-    return <DashboardSkeleton />;
+    return <LoadingSpinner />;
   }
 
-  // Not authenticated — show landing page
-  if (!authenticated || !sessionChecked) {
-    const LandingPage = lazy(() =>
-      import("@/components/landing/landing-page").then((m) => ({
-        default: m.LandingPage || (m.default as any),
-      }))
-    );
-    return (
-      <Suspense fallback={<LandingFallback />}>
-        <LandingPage />
-      </Suspense>
-    );
+  // Authenticated — redirect is in flight
+  if (authenticated && sessionChecked) {
+    return <LoadingSpinner />;
   }
 
   // Network error
@@ -97,16 +101,6 @@ export default function RootPage() {
     );
   }
 
-  // Authenticated — show dashboard shell + launchpad
-  return (
-    <DashboardShell mode="merchant">
-      {bootstrapLoading && !bootstrap ? (
-        <DashboardSkeleton />
-      ) : (
-        <Suspense fallback={<DashboardSkeleton />}>
-          <LaunchpadContent />
-        </Suspense>
-      )}
-    </DashboardShell>
-  );
+  // Not authenticated — show landing page
+  return <LandingPage />;
 }

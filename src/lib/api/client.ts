@@ -10,7 +10,8 @@ import { getPrivateAccessToken } from "@/lib/api/private-client";
 /**
  * XPay.Expert Legacy API client — compatibility layer.
  * Uses the new private-client's token management.
- * 401 → clear session (no refresh token in Phase 2).
+ * 401 → clear session (invalid/expired token).
+ * 403 → do NOT clear session (access denied, not session issue).
  */
 
 let sessionRecoveryRunning = false;
@@ -44,6 +45,10 @@ api.interceptors.response.use(
 
     if (isAuthRoute) return Promise.reject(normalizeError(error));
 
+    // NOTE: Only 401 (Unauthorized) triggers session cleanup.
+    // 403 (Forbidden) is intentionally NOT treated as session expired —
+    // it indicates the user lacks permission for the resource, not that
+    // their session is invalid. It should pass through normally.
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       handleUnauthorized();
