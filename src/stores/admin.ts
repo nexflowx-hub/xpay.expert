@@ -1,48 +1,42 @@
 "use client";
 
 import { create } from "zustand";
-import { privateRequestData } from "@/lib/api/private-client";
-import type { MerchantPayout, Paginated } from "@/types";
-import type { AdminCapabilityStatus } from "@/types";
+import { fetchPlatformCapabilities, clearCapabilitiesCache } from "@/lib/api/capabilities-api";
+import type { PlatformCapabilities } from "@/types";
 
 interface AdminState {
   isPlatformAdmin: boolean;
-  adminCapabilityStatus: AdminCapabilityStatus;
+  adminCapabilityStatus: "loading" | "true" | "false" | "unknown";
+  capabilities: PlatformCapabilities | null;
   checkAdminCapability: () => Promise<void>;
   resetCapability: () => void;
 }
 
 export const useAdminStore = create<AdminState>()((set) => ({
   isPlatformAdmin: false,
-  adminCapabilityStatus: "loading" as AdminCapabilityStatus,
+  adminCapabilityStatus: "loading",
+  capabilities: null,
 
   checkAdminCapability: async () => {
-    set({ adminCapabilityStatus: "loading" as AdminCapabilityStatus });
+    set({ adminCapabilityStatus: "loading" });
     try {
-      // Admin Capability Probe: GET /admin/merchant-payouts?limit=1
-      await privateRequestData<Paginated<MerchantPayout>>({
-        method: "GET",
-        url: "admin/merchant-payouts",
-        params: { limit: 1 },
-      });
-      // HTTP 200 → admin confirmed
-      set({ isPlatformAdmin: true, adminCapabilityStatus: "true" as AdminCapabilityStatus });
-    } catch (err: unknown) {
-      const error = err as { status?: number };
-      if (error?.status === 403) {
-        // HTTP 403 → not admin
-        set({ isPlatformAdmin: false, adminCapabilityStatus: "false" as AdminCapabilityStatus });
-      } else if (error?.status === 401) {
-        // HTTP 401 → session invalid (handled by interceptor)
-        set({ isPlatformAdmin: false, adminCapabilityStatus: "unknown" as AdminCapabilityStatus });
+      const caps = await fetchPlatformCapabilities();
+      if (caps) {
+        set({
+          isPlatformAdmin: caps.identity.isPlatformAdmin === true,
+          adminCapabilityStatus: caps.identity.isPlatformAdmin ? "true" : "false",
+          capabilities: caps,
+        });
       } else {
-        // Other error → unknown state, allow retry
-        set({ isPlatformAdmin: false, adminCapabilityStatus: "unknown" as AdminCapabilityStatus });
+        set({ isPlatformAdmin: false, adminCapabilityStatus: "unknown" });
       }
+    } catch {
+      set({ isPlatformAdmin: false, adminCapabilityStatus: "unknown" });
     }
   },
 
   resetCapability: () => {
-    set({ isPlatformAdmin: false, adminCapabilityStatus: "loading" as AdminCapabilityStatus });
+    clearCapabilitiesCache();
+    set({ isPlatformAdmin: false, adminCapabilityStatus: "loading", capabilities: null });
   },
 }));

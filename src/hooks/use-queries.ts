@@ -27,7 +27,11 @@ import {
   adminMerchantEndpoints,
   adminKycEndpoints,
   adminSystemEndpoints,
+  transactionDetailEndpoints,
+  walletMovementEndpoints,
+  kycEndpoints,
 } from "@/lib/api/endpoints";
+import { fetchPlatformCapabilities } from "@/lib/api/capabilities-api";
 import type {
   CreateStorePayload,
   UpdateStorePayload,
@@ -52,7 +56,7 @@ export const queryKeys = {
   apiKeys: ["api-keys"] as const,
   webhooks: ["webhooks"] as const,
   wallets: ["wallets"] as const,
-  walletMovements: ["wallets", "movements"] as const,
+  walletMovements: (filters?: DataTableFilters) => ["wallets", "movements", filters] as const,
   transactions: (filters?: DataTableFilters) => ["transactions", filters] as const,
   transactionStats: ["transactions", "stats"] as const,
   analyticsOverview: ["analytics", "overview"] as const,
@@ -81,6 +85,12 @@ export const queryKeys = {
   // Admin System
   adminHealth: ["admin", "health"] as const,
   adminRevenue: ["admin", "revenue"] as const,
+  // Platform Capabilities
+  platformCapabilities: ["platform", "capabilities"] as const,
+  // Transaction Detail
+  transactionDetail: (id: string) => ["transactions", id] as const,
+  // KYC Status
+  kycStatus: ["kyc", "status"] as const,
 };
 
 const defaultOptions = {
@@ -634,6 +644,50 @@ export function useAdminRevenue() {
   return useQuery({
     queryKey: queryKeys.adminRevenue,
     queryFn: () => adminSystemEndpoints.revenue(),
+    ...defaultOptions,
+  });
+}
+
+// ---- Platform Capabilities ----
+
+export function usePlatformCapabilities() {
+  return useQuery({
+    queryKey: queryKeys.platformCapabilities,
+    queryFn: () => fetchPlatformCapabilities(),
+    ...defaultOptions,
+    staleTime: 5 * 60 * 1000, // 5 minutes — capabilities change rarely
+    retry: 1,
+    enabled: true,
+  });
+}
+
+// ---- Transaction Detail ----
+
+export function useTransactionDetail(id: string) {
+  return useQuery({
+    queryKey: queryKeys.transactionDetail(id),
+    queryFn: () => transactionDetailEndpoints.get(id),
+    ...defaultOptions,
+    enabled: !!id,
+  });
+}
+
+// ---- Wallet Movements ----
+
+export function useWalletMovements(filters?: DataTableFilters) {
+  return useQuery({
+    queryKey: queryKeys.walletMovements(filters),
+    queryFn: () => walletMovementEndpoints.list(filters),
+    ...defaultOptions,
+  });
+}
+
+// ---- KYC Status ----
+
+export function useKycStatus() {
+  return useQuery({
+    queryKey: queryKeys.kycStatus,
+    queryFn: () => kycEndpoints.status(),
     ...defaultOptions,
   });
 }

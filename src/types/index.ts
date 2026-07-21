@@ -734,7 +734,7 @@ export interface MerchantPayout {
   beneficiaryCountry: string;
   status: MerchantPayoutStatus;
   fxRequired: boolean;
-  fxStatus: string | null;
+  fxStatus: MerchantPayoutFxStatus | null;
   fxRate: number | null;
   fxProvider: string | null;
   fxReference: string | null;
@@ -767,7 +767,7 @@ export interface MerchantPayoutValidation {
   payoutCurrency: CurrencyCode;
   payoutAmount: number;
   fxRequired: boolean;
-  fxStatus: string | null;
+  fxStatus: MerchantPayoutFxStatus | null;
   initialStatus: MerchantPayoutStatus;
   availableAfterReservation: number;
   destination: MerchantPayoutDestination;
@@ -816,3 +816,62 @@ export interface AdminRejectPayload {
 
 // ---- Admin Capability ----
 export type AdminCapabilityStatus = "loading" | "true" | "false" | "unknown";
+
+// ============================================================
+// Phase 3/4: Platform Capabilities
+// ============================================================
+
+export type MerchantPayoutFxStatus =
+  | "not_required"
+  | "pending_quote"
+  | "quoted"
+  | "accepted"
+  | "rejected";
+
+export interface PlatformCapabilities {
+  contract: {
+    name: string;
+    version: string;
+    commerceApi: string;
+  };
+  application: {
+    name: string;
+    version: string;
+    environment: string;
+  };
+  identity: {
+    merchantId: string;
+    email: string;
+    roles: string[];
+    isPlatformAdmin: boolean;
+  };
+  capabilities: {
+    commerce: boolean;
+    merchantPayouts: boolean;
+    settlements: boolean;
+    adminConsole: boolean;
+    banking: boolean;
+    advisory: boolean;
+    advisoryCases: boolean;
+    advisoryDocuments: boolean;
+    advisoryMessages: boolean;
+  };
+  operations: {
+    payoutExecution: string;
+    payoutFx: string;
+    settlementRelease: string;
+  };
+  controls: {
+    kycGate: boolean;
+    payoutLimits: boolean;
+    destinationEncryption: boolean;
+    fourEyesApproval: boolean;
+  };
+  notifications: {
+    telegram: boolean;
+    discord: boolean;
+    email: boolean;
+    whatsapp: boolean;
+  };
+  generatedAt: string;
+}

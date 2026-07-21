@@ -131,10 +131,11 @@ export default function LoginPage() {
         </Card>
 
         {/* Environment badge */}
-        <div className="flex justify-center">
-          <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
-            Lab Environment
+        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-amber-400">
+            Pilot Environment
           </span>
+          <span>v4.0.0-lab</span>
         </div>
       </div>
     </div>

@@ -50,6 +50,7 @@ import type {
   AdminProcessingPayload,
   AdminPaidPayload,
   AdminRejectPayload,
+  WalletMovement,
 } from "@/types";
 
 // ---- Auth (Public) ----
@@ -473,5 +474,36 @@ export const adminSystemEndpoints = {
     privateRequestData<{ total: number; series: { date: string; value: number }[] }>({
       method: "GET",
       url: "admin/revenue",
+    }),
+};
+
+// ---- Transaction Detail (Private) ----
+
+export const transactionDetailEndpoints = {
+  get: (id: string) =>
+    privateRequestData<Transaction>({
+      method: "GET",
+      url: `transactions/${id}`,
+    }),
+};
+
+// ---- Wallet Movements (Private) ----
+
+export const walletMovementEndpoints = {
+  list: (filters?: DataTableFilters) =>
+    privateRequestData<Paginated<WalletMovement>>({
+      method: "GET",
+      url: "wallets/movements",
+      params: filters,
+    }),
+};
+
+// ---- KYC Status (Private) ----
+
+export const kycEndpoints = {
+  status: () =>
+    privateRequestData<{ status: string; level: string; requiredDocuments: string[]; submittedAt?: string; verifiedAt?: string }>({
+      method: "GET",
+      url: "risk/kyc/status",
     }),
 };

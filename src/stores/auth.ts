@@ -13,6 +13,7 @@ import {
   setPrivateAccessToken,
   registerUnauthorizedHandler,
 } from "@/lib/api/private-client";
+import { useAdminStore } from "@/stores/admin";
 
 export type SessionStatus =
   | "hydrating"
@@ -145,6 +146,7 @@ export const useAuth = create<AuthState>()(
         clearSession: () => {
           clearAuthenticationStorage();
           setPrivateAccessToken(null);
+          useAdminStore.getState().resetCapability();
           set({
             user: null,
             accessToken: null,

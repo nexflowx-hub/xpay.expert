@@ -161,3 +161,55 @@ Stage Summary:
 - Build: PASSING
 - Commit SHA: 8113e50cd3a5b79d88adef2f2865b74020309518
 - Push to GitHub blocked by sandbox network restrictions (no credentials)
+
+---
+Task ID: 1
+Agent: main
+Task: Phase A — Types, capabilities API, endpoints, mock cleanup
+
+Work Log:
+- Added MerchantPayoutFxStatus type, PlatformCapabilities interface to types/index.ts
+- Changed fxStatus from string|null to MerchantPayoutFxStatus|null in MerchantPayout and MerchantPayoutValidation
+- Created src/lib/api/capabilities-api.ts with fallback logic
+- Added transaction detail, wallet movements, KYC status endpoints to endpoints.ts
+- Added WalletMovement import to endpoints.ts
+- Deleted src/lib/api/mock.ts (dead code, 0 imports)
+- Updated feature-flags.ts JSDoc to reference capabilities-driven approach
+
+Stage Summary:
+- Platform capabilities infrastructure ready for integration
+- All new types are strict (no `any`)
+- mock.ts removed (503 lines of dead code)
+
+---
+Task ID: 3
+Agent: main
+Task: Phase A — Login page, dashboard layout, shell updates
+
+Work Log:
+- Updated login page environment badge from "Lab Environment" to "Pilot Environment" with amber styling and version tag
+- Added bootstrap loading gate to dashboard layout with loading spinner and retry on error
+- Verified Product Switcher uses `useAdminStore((s) => s.isPlatformAdmin)` correctly — admin area only shows when true
+- Verified NotificationsPanel uses i18n keys for empty state — no hardcoded/fake notifications
+
+Stage Summary:
+- Bootstrap loading gate prevents rendering dashboard without data
+- Login page shows correct environment with amber badge
+- Shell is clean — no hardcoded data
+
+---
+Task ID: 2
+Agent: main
+Task: Phase A — React Query hooks, admin store, auth store updates
+
+Work Log:
+- Added usePlatformCapabilities, useTransactionDetail, useWalletMovements, useKycStatus hooks
+- Added query keys for new endpoints (platformCapabilities, transactionDetail, kycStatus)
+- Updated walletMovements query key to accept optional DataTableFilters
+- Updated admin store to use capabilities API with fallback
+- Auth store clearSession now resets admin capabilities
+
+Stage Summary:
+- 4 new React Query hooks ready
+- Admin store now capabilities-driven
+- Clean capability reset on logout

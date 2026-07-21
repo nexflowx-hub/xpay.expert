@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * XPay.Expert — Centralized Feature Flags
+ * XPay.Expert — Feature Flags
  *
- * Single source of truth for feature availability.
- * Do NOT scatter boolean checks across components.
+ * STATIC fallback flags. When /platform/capabilities is available,
+ * the UI should prefer capabilities.capabilities.* from the API response.
+ * Use isFeatureEnabled() for static checks, or usePlatformCapabilities()
+ * for dynamic server-driven checks.
  */
 export const features = {
   commerce: true,
