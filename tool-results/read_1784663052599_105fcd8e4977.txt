@@ -1,0 +1,1287 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import { useRouter } from "next/navigation";
+     5→import { motion } from "framer-motion";
+     6→import {
+     7→  ArrowLeft,
+     8→  ArrowRight,
+     9→  Check,
+    10→  CheckCircle2,
+    11→  CircleDot,
+    12→  Loader2,
+    13→  RefreshCw,
+    14→  AlertTriangle,
+    15→  Wallet as WalletIcon,
+    16→  Send,
+    17→  ArrowUpRight,
+    18→  Shield,
+    19→  FileCheck,
+    20→  PartyPopper,
+    21→  Landmark,
+    22→  Coins,
+    23→  QrCode,
+    24→} from "lucide-react";
+    25→import {
+    26→  useWallets,
+    27→  useMerchantPayoutOptions,
+    28→  useValidateMerchantPayout,
+    29→  useCreateMerchantPayout,
+    30→} from "@/hooks/use-queries";
+    31→import { PageHeader, ErrorState, fadeUp } from "@/components/shared";
+    32→import { formatCurrency, cn } from "@/lib/utils";
+    33→import { Card } from "@/components/ui/card";
+    34→import { Button } from "@/components/ui/button";
+    35→import { Badge } from "@/components/ui/badge";
+    36→import { Input } from "@/components/ui/input";
+    37→import { Label } from "@/components/ui/label";
+    38→import { Textarea } from "@/components/ui/textarea";
+    39→import { Separator } from "@/components/ui/separator";
+    40→import { Skeleton } from "@/components/ui/skeleton";
+    41→import {
+    42→  Select,
+    43→  SelectTrigger,
+    44→  SelectValue,
+    45→  SelectContent,
+    46→  SelectItem,
+    47→} from "@/components/ui/select";
+    48→import { COUNTRY_LIST } from "@/config";
+    49→import type {
+    50→  Wallet as WalletType,
+    51→  MerchantPayoutMethod,
+    52→  MerchantPayoutDestination,
+    53→  MerchantPayoutOptions,
+    54→  MerchantPayoutValidation,
+    55→  MerchantPayoutStatus,
+    56→  PixKeyType,
+    57→  CreateMerchantPayoutPayload,
+    58→  MerchantPayout,
+    59→  CurrencyCode,
+    60→} from "@/types";
+    61→
+    62→// ---- Step definitions ----
+    63→type WizardStep = "source" | "destination" | "validation" | "confirmation" | "created";
+    64→
+    65→const STEPS: { key: WizardStep; label: string; icon: React.ElementType }[] = [
+    66→  { key: "source", label: "Source", icon: WalletIcon },
+    67→  { key: "destination", label: "Destination", icon: Send },
+    68→  { key: "validation", label: "Validate", icon: FileCheck },
+    69→  { key: "confirmation", label: "Confirm", icon: Shield },
+    70→  { key: "created", label: "Done", icon: PartyPopper },
+    71→];
+    72→
+    73→const METHOD_INFO: Record<
+    74→  MerchantPayoutMethod,
+    75→  { label: string; description: string; icon: React.ElementType }
+    76→> = {
+    77→  SEPA_INSTANT: {
+    78→    label: "SEPA Instant",
+    79→    description: "Euro bank transfer via SEPA Instant scheme",
+    80→    icon: Landmark,
+    81→  },
+    82→  PIX: {
+    83→    label: "PIX",
+    84→    description: "Brazilian instant payment via PIX key",
+    85→    icon: QrCode,
+    86→  },
+    87→  USDT_TRC20: {
+    88→    label: "USDT (TRC20)",
+    89→    description: "Tether on Tron network",
+    90→    icon: Coins,
+    91→  },
+    92→  USDT_ERC20: {
+    93→    label: "USDT (ERC20)",
+    94→    description: "Tether on Ethereum network",
+    95→    icon: Coins,
+    96→  },
+    97→  MANUAL: {
+    98→    label: "Manual Transfer",
+    99→    description: "Custom manual payout instructions",
+   100→    icon: ArrowUpRight,
+   101→  },
+   102→};
+   103→
+   104→const PIX_KEY_TYPES: { value: PixKeyType; label: string }[] = [
+   105→  { value: "CPF", label: "CPF (Individual)" },
+   106→  { value: "CNPJ", label: "CNPJ (Company)" },
+   107→  { value: "EMAIL", label: "Email" },
+   108→  { value: "PHONE", label: "Phone" },
+   109→  { value: "EVP", label: "EVP (Random Key)" },
+   110→];
+   111→
+   112→// ---- Step Indicator ----
+   113→function StepIndicator({
+   114→  currentStep,
+   115→  steps,
+   116→}: {
+   117→  currentStep: WizardStep;
+   118→  steps: typeof STEPS;
+   119→}) {
+   120→  const currentIndex = steps.findIndex((s) => s.key === currentStep);
+   121→  return (
+   122→    <div className="flex items-center justify-center gap-1 overflow-x-auto pb-2">
+   123→      {steps.map((step, i) => {
+   124→        const Icon = step.icon;
+   125→        const isCompleted = i < currentIndex;
+   126→        const isCurrent = i === currentIndex;
+   127→        return (
+   128→          <React.Fragment key={step.key}>
+   129→            {i > 0 && (
+   130→              <div
+   131→                className={cn(
+   132→                  "h-px w-6 sm:w-10",
+   133→                  i <= currentIndex ? "bg-primary/40" : "bg-border/60"
+   134→                )}
+   135→              />
+   136→            )}
+   137→            <div className="flex flex-col items-center gap-1">
+   138→              <div
+   139→                className={cn(
+   140→                  "grid h-8 w-8 place-items-center rounded-full border text-xs transition",
+   141→                  isCompleted &&
+   142→                    "border-emerald-500/40 bg-emerald-500/12 text-emerald-400",
+   143→                  isCurrent &&
+   144→                    "border-primary/40 bg-primary/12 text-primary",
+   145→                  !isCompleted &&
+   146→                    !isCurrent &&
+   147→                    "border-border/60 bg-muted/30 text-muted-foreground"
+   148→                )}
+   149→              >
+   150→                {isCompleted ? (
+   151→                  <Check className="h-3.5 w-3.5" />
+   152→                ) : (
+   153→                  <Icon className="h-3.5 w-3.5" />
+   154→                )}
+   155→              </div>
+   156→              <span
+   157→                className={cn(
+   158→                  "hidden text-[10px] sm:block",
+   159→                  isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
+   160→                )}
+   161→              >
+   162→                {step.label}
+   163→              </span>
+   164→            </div>
+   165→          </React.Fragment>
+   166→        );
+   167→      })}
+   168→    </div>
+   169→  );
+   170→}
+   171→
+   172→// ---- Main Wizard Component ----
+   173→export default function NewPayoutPage() {
+   174→  const router = useRouter();
+   175→
+   176→  // Step state
+   177→  const [step, setStep] = React.useState<WizardStep>("source");
+   178→
+   179→  // Step 1: Source
+   180→  const [selectedWalletId, setSelectedWalletId] = React.useState<string>("");
+   181→  const [sourceAmountStr, setSourceAmountStr] = React.useState<string>("");
+   182→
+   183→  // Step 2: Destination
+   184→  const [selectedMethod, setSelectedMethod] = React.useState<MerchantPayoutMethod | "">("");
+   185→  // SEPA fields
+   186→  const [sepaBeneficiary, setSepaBeneficiary] = React.useState("");
+   187→  const [sepaIban, setSepaIban] = React.useState("");
+   188→  const [sepaBic, setSepaBic] = React.useState("");
+   189→  const [sepaBankName, setSepaBankName] = React.useState("");
+   190→  const [sepaCountry, setSepaCountry] = React.useState("");
+   191→  const [sepaReference, setSepaReference] = React.useState("");
+   192→  // PIX fields
+   193→  const [pixBeneficiary, setPixBeneficiary] = React.useState("");
+   194→  const [pixKeyType, setPixKeyType] = React.useState<PixKeyType | "">("");
+   195→  const [pixKeyValue, setPixKeyValue] = React.useState("");
+   196→  const [pixTaxId, setPixTaxId] = React.useState("");
+   197→  const [pixBankName, setPixBankName] = React.useState("");
+   198→  const [pixCountry, setPixCountry] = React.useState("Brazil");
+   199→  // Crypto fields (shared)
+   200→  const [cryptoBeneficiary, setCryptoBeneficiary] = React.useState("");
+   201→  const [cryptoWalletAddress, setCryptoWalletAddress] = React.useState("");
+   202→  // Manual fields
+   203→  const [manualBeneficiary, setManualBeneficiary] = React.useState("");
+   204→  const [manualCountry, setManualCountry] = React.useState("");
+   205→  const [manualNetwork, setManualNetwork] = React.useState("");
+   206→  const [manualInstructions, setManualInstructions] = React.useState("");
+   207→
+   208→  // Step 3: Validation result
+   209→  const [validationResult, setValidationResult] =
+   210→    React.useState<MerchantPayoutValidation | null>(null);
+   211→
+   212→  // Step 4: Created payout
+   213→  const [createdPayout, setCreatedPayout] =
+   214→    React.useState<MerchantPayout | null>(null);
+   215→  const [createError, setCreateError] = React.useState<string | null>(null);
+   216→
+   217→  // Idempotency key ref — generated ONCE and never regenerated
+   218→  const idempotencyKeyRef = React.useRef<string | null>(null);
+   219→
+   220→  // Queries & mutations
+   221→  const { data: walletsRes, isLoading: walletsLoading } = useWallets();
+   222→  const {
+   223→    data: options,
+   224→    isLoading: optionsLoading,
+   225→    isError: optionsError,
+   226→    refetch: refetchOptions,
+   227→  } = useMerchantPayoutOptions();
+   228→
+   229→  const validateMutation = useValidateMerchantPayout();
+   230→  const createMutation = useCreateMerchantPayout();
+   231→
+   232→  // Derived: settlement wallets only
+   233→  const settlementWallets: WalletType[] = React.useMemo(() => {
+   234→    const allWallets = walletsRes?.wallets ?? walletsRes;
+   235→    if (!allWallets) return [];
+   236→    if (Array.isArray(allWallets)) {
+   237→      return allWallets.filter((w: WalletType) => w.type === "settlement");
+   238→    }
+   239→    return [];
+   240→  }, [walletsRes]);
+   241→
+   242→  const selectedWallet = React.useMemo(
+   243→    () => settlementWallets.find((w) => w.id === selectedWalletId),
+   244→    [settlementWallets, selectedWalletId]
+   245→  );
+   246→
+   247→  const sourceAmount = parseFloat(sourceAmountStr) || 0;
+   248→
+   249→  // Build destination object from form state
+   250→  const buildDestination = React.useCallback((): MerchantPayoutDestination | null => {
+   251→    if (!selectedMethod) return null;
+   252→    const base = { method: selectedMethod as MerchantPayoutMethod };
+   253→
+   254→    switch (selectedMethod) {
+   255→      case "SEPA_INSTANT":
+   256→        if (!sepaBeneficiary.trim() || !sepaIban.trim() || !sepaCountry.trim())
+   257→          return null;
+   258→        return {
+   259→          ...base,
+   260→          beneficiaryName: sepaBeneficiary.trim(),
+   261→          iban: sepaIban.trim(),
+   262→          bic: sepaBic.trim() || undefined,
+   263→          bankName: sepaBankName.trim() || undefined,
+   264→          country: sepaCountry.trim(),
+   265→          paymentReference: sepaReference.trim() || undefined,
+   266→        };
+   267→      case "PIX":
+   268→        if (!pixBeneficiary.trim() || !pixKeyType || !pixKeyValue.trim())
+   269→          return null;
+   270→        return {
+   271→          ...base,
+   272→          beneficiaryName: pixBeneficiary.trim(),
+   273→          keyType: pixKeyType as PixKeyType,
+   274→          keyValue: pixKeyValue.trim(),
+   275→          taxId: pixTaxId.trim() || undefined,
+   276→          bankName: pixBankName.trim() || undefined,
+   277→          country: pixCountry.trim() || "Brazil",
+   278→        };
+   279→      case "USDT_TRC20":
+   280→      case "USDT_ERC20":
+   281→        if (!cryptoBeneficiary.trim() || !cryptoWalletAddress.trim())
+   282→          return null;
+   283→        return {
+   284→          ...base,
+   285→          beneficiaryName: cryptoBeneficiary.trim(),
+   286→          walletAddress: cryptoWalletAddress.trim(),
+   287→          network:
+   288→            selectedMethod === "USDT_TRC20" ? "TRC20" : "ERC20",
+   289→        };
+   290→      case "MANUAL":
+   291→        if (
+   292→          !manualBeneficiary.trim() ||
+   293→          !manualCountry.trim() ||
+   294→          !manualNetwork.trim() ||
+   295→          !manualInstructions.trim()
+   296→        )
+   297→          return null;
+   298→        return {
+   299→          ...base,
+   300→          beneficiaryName: manualBeneficiary.trim(),
+   301→          country: manualCountry.trim(),
+   302→          network: manualNetwork.trim(),
+   303→          instructions: manualInstructions.trim(),
+   304→        };
+   305→      default:
+   306→        return null;
+   307→    }
+   308→  }, [
+   309→    selectedMethod,
+   310→    sepaBeneficiary,
+   311→    sepaIban,
+   312→    sepaBic,
+   313→    sepaBankName,
+   314→    sepaCountry,
+   315→    sepaReference,
+   316→    pixBeneficiary,
+   317→    pixKeyType,
+   318→    pixKeyValue,
+   319→    pixTaxId,
+   320→    pixBankName,
+   321→    pixCountry,
+   322→    cryptoBeneficiary,
+   323→    cryptoWalletAddress,
+   324→    manualBeneficiary,
+   325→    manualCountry,
+   326→    manualNetwork,
+   327→    manualInstructions,
+   328→  ]);
+   329→
+   330→  // Build payload for validation/creation
+   331→  const buildPayload = React.useCallback((): CreateMerchantPayoutPayload | null => {
+   332→    if (!selectedWalletId || sourceAmount <= 0) return null;
+   333→    const dest = buildDestination();
+   334→    if (!dest) return null;
+   335→    return {
+   336→      walletId: selectedWalletId,
+   337→      sourceAmount,
+   338→      method: dest.method,
+   339→      destination: dest,
+   340→    };
+   341→  }, [selectedWalletId, sourceAmount, buildDestination]);
+   342→
+   343→  // Step validation
+   344→  const isSourceValid =
+   345→    selectedWalletId !== "" && sourceAmount > 0 && sourceAmount <= (selectedWallet?.available ?? 0);
+   346→
+   347→  const isDestinationValid = buildDestination() !== null;
+   348→
+   349→  const stepIndex = STEPS.findIndex((s) => s.key === step);
+   350→
+   351→  function goNext() {
+   352→    if (stepIndex < STEPS.length - 1) {
+   353→      setStep(STEPS[stepIndex + 1].key);
+   354→    }
+   355→  }
+   356→
+   357→  function goBack() {
+   358→    if (stepIndex > 0) {
+   359→      setStep(STEPS[stepIndex - 1].key);
+   360→    }
+   361→  }
+   362→
+   363→  // Step 3: Validate
+   364→  function handleValidate() {
+   365→    const payload = buildPayload();
+   366→    if (!payload) return;
+   367→    validateMutation.mutate(payload, {
+   368→      onSuccess: (data) => {
+   369→        setValidationResult(data);
+   370→        setCreateError(null);
+   371→        goNext();
+   372→      },
+   373→    });
+   374→  }
+   375→
+   376→  // Step 4: Create
+   377→  function handleCreate() {
+   378→    const payload = buildPayload();
+   379→    if (!payload) return;
+   380→
+   381→    // Generate idempotency key ONCE
+   382→    if (!idempotencyKeyRef.current) {
+   383→      idempotencyKeyRef.current = crypto.randomUUID();
+   384→    }
+   385→
+   386→    setCreateError(null);
+   387→    createMutation.mutate(
+   388→      { payload, idempotencyKey: idempotencyKeyRef.current },
+   389→      {
+   390→        onSuccess: (data) => {
+   391→          setCreatedPayout(data);
+   392→          goNext();
+   393→        },
+   394→        onError: (err: Error & { code?: string }) => {
+   395→          setCreateError(err.code || err.message || "Failed to create payout");
+   396→        },
+   397→      }
+   398→    );
+   399→  }
+   400→
+   401→  // Reset everything
+   402→  function resetWizard() {
+   403→    setStep("source");
+   404→    setSelectedWalletId("");
+   405→    setSourceAmountStr("");
+   406→    setSelectedMethod("");
+   407→    // SEPA
+   408→    setSepaBeneficiary("");
+   409→    setSepaIban("");
+   410→    setSepaBic("");
+   411→    setSepaBankName("");
+   412→    setSepaCountry("");
+   413→    setSepaReference("");
+   414→    // PIX
+   415→    setPixBeneficiary("");
+   416→    setPixKeyType("");
+   417→    setPixKeyValue("");
+   418→    setPixTaxId("");
+   419→    setPixBankName("");
+   420→    setPixCountry("Brazil");
+   421→    // Crypto
+   422→    setCryptoBeneficiary("");
+   423→    setCryptoWalletAddress("");
+   424→    // Manual
+   425→    setManualBeneficiary("");
+   426→    setManualCountry("");
+   427→    setManualNetwork("");
+   428→    setManualInstructions("");
+   429→    // Results
+   430→    setValidationResult(null);
+   431→    setCreatedPayout(null);
+   432→    setCreateError(null);
+   433→    idempotencyKeyRef.current = null;
+   434→  }
+   435→
+   436→  // Cancel — go back to list
+   437→  function handleCancel() {
+   438→    resetWizard();
+   439→    router.push("/commerce/payouts");
+   440→  }
+   441→
+   442→  // ---- Render Steps ----
+   443→
+   444→  // STEP 1: Source
+   445→  function renderSource() {
+   446→    return (
+   447→      <Card className="border-border/60 bg-card/60 p-6 backdrop-blur-xl">
+   448→        <h2 className="text-base font-semibold">Select source wallet &amp; amount</h2>
+   449→        <p className="mt-1 text-sm text-muted-foreground">
+   450→          Choose a settlement wallet to fund the payout.
+   451→        </p>
+   452→
+   453→        <div className="mt-6 flex flex-col gap-5">
+   454→          <div className="flex flex-col gap-1.5">
+   455→            <Label htmlFor="wallet-select">Settlement Wallet</Label>
+   456→            {walletsLoading ? (
+   457→              <Skeleton className="h-9 w-full" />
+   458→            ) : (
+   459→              <Select
+   460→                value={selectedWalletId}
+   461→                onValueChange={(v) => {
+   462→                  setSelectedWalletId(v);
+   463→                  setSourceAmountStr("");
+   464→                }}
+   465→              >
+   466→                <SelectTrigger id="wallet-select" className="w-full">
+   467→                  <SelectValue placeholder="Select a wallet" />
+   468→                </SelectTrigger>
+   469→                <SelectContent>
+   470→                  {settlementWallets.length === 0 ? (
+   471→                    <SelectItem value="none" disabled>
+   472→                      No settlement wallets found
+   473→                    </SelectItem>
+   474→                  ) : (
+   475→                    settlementWallets.map((w) => (
+   476→                      <SelectItem key={w.id} value={w.id}>
+   477→                        <span className="flex items-center gap-2">
+   478→                          <span>{w.label || w.currency}</span>
+   479→                          <span className="text-muted-foreground">
+   480→                            — {w.currency} · Avail:{" "}
+   481→                            {formatCurrency(w.available, w.currency)}
+   482→                          </span>
+   483→                        </span>
+   484→                      </SelectItem>
+   485→                    ))
+   486→                  )}
+   487→                </SelectContent>
+   488→              </Select>
+   489→            )}
+   490→          </div>
+   491→
+   492→          {selectedWallet && (
+   493→            <motion.div {...fadeUp}>
+   494→              <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+   495→                <div className="grid grid-cols-2 gap-4">
+   496→                  <div>
+   497→                    <p className="text-xs text-muted-foreground">Currency</p>
+   498→                    <p className="mt-0.5 font-mono text-sm font-medium">
+   499→                      {selectedWallet.currency}
+   500→                    </p>
+   501→                  </div>
+   502→                  <div>
+   503→                    <p className="text-xs text-muted-foreground">Available</p>
+   504→                    <p className="mt-0.5 font-mono text-sm font-medium text-emerald-400">
+   505→                      {formatCurrency(
+   506→                        selectedWallet.available,
+   507→                        selectedWallet.currency
+   508→                      )}
+   509→                    </p>
+   510→                  </div>
+   511→                  <div>
+   512→                    <p className="text-xs text-muted-foreground">Reserved</p>
+   513→                    <p className="mt-0.5 font-mono text-sm font-medium">
+   514→                      {formatCurrency(
+   515→                        selectedWallet.reserved,
+   516→                        selectedWallet.currency
+   517→                      )}
+   518→                    </p>
+   519→                  </div>
+   520→                  <div>
+   521→                    <p className="text-xs text-muted-foreground">Balance</p>
+   522→                    <p className="mt-0.5 font-mono text-sm font-medium">
+   523→                      {formatCurrency(
+   524→                        selectedWallet.balance,
+   525→                        selectedWallet.currency
+   526→                      )}
+   527→                    </p>
+   528→                  </div>
+   529→                </div>
+   530→              </div>
+   531→            </motion.div>
+   532→          )}
+   533→
+   534→          <div className="flex flex-col gap-1.5">
+   535→            <Label htmlFor="source-amount">Source Amount</Label>
+   536→            <div className="relative">
+   537→              <Input
+   538→                id="source-amount"
+   539→                type="number"
+   540→                step="0.01"
+   541→                min="0"
+   542→                placeholder="0.00"
+   543→                value={sourceAmountStr}
+   544→                onChange={(e) => setSourceAmountStr(e.target.value)}
+   545→                className="pr-16 font-mono"
+   546→              />
+   547→              {selectedWallet && (
+   548→                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+   549→                  {selectedWallet.currency}
+   550→                </span>
+   551→              )}
+   552→            </div>
+   553→            {sourceAmountStr && sourceAmount <= 0 && (
+   554→              <p className="text-xs text-rose-400">Amount must be greater than 0</p>
+   555→            )}
+   556→            {sourceAmountStr &&
+   557→              sourceAmount > 0 &&
+   558→              selectedWallet &&
+   559→              sourceAmount > selectedWallet.available && (
+   560→                <p className="text-xs text-rose-400">
+   561→                  Amount exceeds available balance of{" "}
+   562→                  {formatCurrency(
+   563→                    selectedWallet.available,
+   564→                    selectedWallet.currency
+   565→                  )}
+   566→                </p>
+   567→              )}
+   568→          </div>
+   569→        </div>
+   570→      </Card>
+   571→    );
+   572→  }
+   573→
+   574→  // STEP 2: Destination
+   575→  function renderDestination() {
+   576→    const availableMethods = options?.methods ?? [];
+   577→    return (
+   578→      <Card className="border-border/60 bg-card/60 p-6 backdrop-blur-xl">
+   579→        <h2 className="text-base font-semibold">Select payout method</h2>
+   580→        <p className="mt-1 text-sm text-muted-foreground">
+   581→          Choose how you want to receive the payout.
+   582→        </p>
+   583→
+   584→        {optionsError && (
+   585→          <div className="mt-4">
+   586→            <ErrorState
+   587→              message="Failed to load payout options"
+   588→              onRetry={() => refetchOptions()}
+   589→            />
+   590→          </div>
+   591→        )}
+   592→
+   593→        {!optionsError && (
+   594→          <div className="mt-6 flex flex-col gap-6">
+   595→            {/* Method selector */}
+   596→            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+   597→              {optionsLoading
+   598→                ? Array.from({ length: 3 }).map((_, i) => (
+   599→                    <Skeleton key={i} className="h-20 rounded-xl" />
+   600→                  ))
+   601→                : availableMethods.map((m) => {
+   602→                    const info = METHOD_INFO[m];
+   603→                    const Icon = info.icon;
+   604→                    const isActive = selectedMethod === m;
+   605→                    return (
+   606→                      <button
+   607→                        key={m}
+   608→                        type="button"
+   609→                        onClick={() => setSelectedMethod(m)}
+   610→                        className={cn(
+   611→                          "flex items-start gap-3 rounded-xl border p-4 text-left transition",
+   612→                          isActive
+   613→                            ? "border-primary/50 bg-primary/5"
+   614→                            : "border-border/60 bg-background/40 hover:border-border"
+   615→                        )}
+   616→                      >
+   617→                        <div
+   618→                          className={cn(
+   619→                            "mt-0.5 rounded-lg p-1.5",
+   620→                            isActive
+   621→                              ? "bg-primary/15 text-primary"
+   622→                              : "bg-muted/40 text-muted-foreground"
+   623→                          )}
+   624→                        >
+   625→                          <Icon className="h-4 w-4" />
+   626→                        </div>
+   627→                        <div className="min-w-0 flex-1">
+   628→                          <p className="text-sm font-medium">{info.label}</p>
+   629→                          <p className="mt-0.5 text-xs text-muted-foreground">
+   630→                            {info.description}
+   631→                          </p>
+   632→                        </div>
+   633→                        {isActive && (
+   634→                          <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+   635→                        )}
+   636→                      </button>
+   637→                    );
+   638→                  })}
+   639→            </div>
+   640→
+   641→            {/* Dynamic fields based on method */}
+   642→            {selectedMethod === "SEPA_INSTANT" && (
+   643→              <motion.div {...fadeUp} className="flex flex-col gap-4">
+   644→                <Separator />
+   645→                <h3 className="text-sm font-semibold">SEPA Instant Details</h3>
+   646→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+   647→                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+   648→                    <Label htmlFor="sepa-beneficiary">Beneficiary Name *</Label>
+   649→                    <Input
+   650→                      id="sepa-beneficiary"
+   651→                      value={sepaBeneficiary}
+   652→                      onChange={(e) => setSepaBeneficiary(e.target.value)}
+   653→                      placeholder="Company or individual name"
+   654→                    />
+   655→                  </div>
+   656→                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+   657→                    <Label htmlFor="sepa-iban">IBAN *</Label>
+   658→                    <Input
+   659→                      id="sepa-iban"
+   660→                      value={sepaIban}
+   661→                      onChange={(e) => setSepaIban(e.target.value)}
+   662→                      placeholder="PT50 0002 0123 1234 5678 9015 4"
+   663→                      className="font-mono"
+   664→                    />
+   665→                  </div>
+   666→                  <div className="flex flex-col gap-1.5">
+   667→                    <Label htmlFor="sepa-bic">BIC (optional)</Label>
+   668→                    <Input
+   669→                      id="sepa-bic"
+   670→                      value={sepaBic}
+   671→                      onChange={(e) => setSepaBic(e.target.value)}
+   672→                      placeholder="BNPAPTPP"
+   673→                      className="font-mono"
+   674→                    />
+   675→                  </div>
+   676→                  <div className="flex flex-col gap-1.5">
+   677→                    <Label htmlFor="sepa-bank">Bank Name (optional)</Label>
+   678→                    <Input
+   679→                      id="sepa-bank"
+   680→                      value={sepaBankName}
+   681→                      onChange={(e) => setSepaBankName(e.target.value)}
+   682→                      placeholder="Bank name"
+   683→                    />
+   684→                  </div>
+   685→                  <div className="flex flex-col gap-1.5">
+   686→                    <Label htmlFor="sepa-country">Country *</Label>
+   687→                    <Select value={sepaCountry} onValueChange={setSepaCountry}>
+   688→                      <SelectTrigger id="sepa-country">
+   689→                        <SelectValue placeholder="Select country" />
+   690→                      </SelectTrigger>
+   691→                      <SelectContent>
+   692→                        {COUNTRY_LIST.map((c) => (
+   693→                          <SelectItem key={c} value={c}>
+   694→                            {c}
+   695→                          </SelectItem>
+   696→                        ))}
+   697→                      </SelectContent>
+   698→                    </Select>
+   699→                  </div>
+   700→                  <div className="flex flex-col gap-1.5">
+   701→                    <Label htmlFor="sepa-ref">Payment Reference (optional)</Label>
+   702→                    <Input
+   703→                      id="sepa-ref"
+   704→                      value={sepaReference}
+   705→                      onChange={(e) => setSepaReference(e.target.value)}
+   706→                      placeholder="Invoice reference"
+   707→                    />
+   708→                  </div>
+   709→                </div>
+   710→              </motion.div>
+   711→            )}
+   712→
+   713→            {selectedMethod === "PIX" && (
+   714→              <motion.div {...fadeUp} className="flex flex-col gap-4">
+   715→                <Separator />
+   716→                <h3 className="text-sm font-semibold">PIX Details</h3>
+   717→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+   718→                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+   719→                    <Label htmlFor="pix-beneficiary">Beneficiary Name *</Label>
+   720→                    <Input
+   721→                      id="pix-beneficiary"
+   722→                      value={pixBeneficiary}
+   723→                      onChange={(e) => setPixBeneficiary(e.target.value)}
+   724→                      placeholder="Company or individual name"
+   725→                    />
+   726→                  </div>
+   727→                  <div className="flex flex-col gap-1.5">
+   728→                    <Label htmlFor="pix-key-type">Key Type *</Label>
+   729→                    <Select
+   730→                      value={pixKeyType}
+   731→                      onValueChange={(v) => setPixKeyType(v as PixKeyType)}
+   732→                    >
+   733→                      <SelectTrigger id="pix-key-type">
+   734→                        <SelectValue placeholder="Select key type" />
+   735→                      </SelectTrigger>
+   736→                      <SelectContent>
+   737→                        {PIX_KEY_TYPES.map((kt) => (
+   738→                          <SelectItem key={kt.value} value={kt.value}>
+   739→                            {kt.label}
+   740→                          </SelectItem>
+   741→                        ))}
+   742→                      </SelectContent>
+   743→                    </Select>
+   744→                  </div>
+   745→                  <div className="flex flex-col gap-1.5">
+   746→                    <Label htmlFor="pix-key-value">Key Value *</Label>
+   747→                    <Input
+   748→                      id="pix-key-value"
+   749→                      value={pixKeyValue}
+   750→                      onChange={(e) => setPixKeyValue(e.target.value)}
+   751→                      placeholder="PIX key value"
+   752→                      className="font-mono"
+   753→                    />
+   754→                  </div>
+   755→                  <div className="flex flex-col gap-1.5">
+   756→                    <Label htmlFor="pix-tax-id">Tax ID (optional)</Label>
+   757→                    <Input
+   758→                      id="pix-tax-id"
+   759→                      value={pixTaxId}
+   760→                      onChange={(e) => setPixTaxId(e.target.value)}
+   761→                      placeholder="Tax ID"
+   762→                      className="font-mono"
+   763→                    />
+   764→                  </div>
+   765→                  <div className="flex flex-col gap-1.5">
+   766→                    <Label htmlFor="pix-bank">Bank Name (optional)</Label>
+   767→                    <Input
+   768→                      id="pix-bank"
+   769→                      value={pixBankName}
+   770→                      onChange={(e) => setPixBankName(e.target.value)}
+   771→                      placeholder="Bank name"
+   772→                    />
+   773→                  </div>
+   774→                  <div className="flex flex-col gap-1.5">
+   775→                    <Label>Country</Label>
+   776→                    <Input value="Brazil" disabled />
+   777→                  </div>
+   778→                </div>
+   779→              </motion.div>
+   780→            )}
+   781→
+   782→            {(selectedMethod === "USDT_TRC20" ||
+   783→              selectedMethod === "USDT_ERC20") && (
+   784→              <motion.div {...fadeUp} className="flex flex-col gap-4">
+   785→                <Separator />
+   786→                <h3 className="text-sm font-semibold">
+   787→                  {selectedMethod === "USDT_TRC20"
+   788→                    ? "USDT TRC20 Details"
+   789→                    : "USDT ERC20 Details"}
+   790→                </h3>
+   791→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+   792→                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+   793→                    <Label htmlFor="crypto-beneficiary">Beneficiary Name *</Label>
+   794→                    <Input
+   795→                      id="crypto-beneficiary"
+   796→                      value={cryptoBeneficiary}
+   797→                      onChange={(e) => setCryptoBeneficiary(e.target.value)}
+   798→                      placeholder="Company or individual name"
+   799→                    />
+   800→                  </div>
+   801→                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+   802→                    <Label htmlFor="crypto-addr">Wallet Address *</Label>
+   803→                    <Input
+   804→                      id="crypto-addr"
+   805→                      value={cryptoWalletAddress}
+   806→                      onChange={(e) => setCryptoWalletAddress(e.target.value)}
+   807→                      placeholder="0x... or T..."
+   808→                      className="font-mono"
+   809→                    />
+   810→                  </div>
+   811→                  <div className="flex flex-col gap-1.5">
+   812→                    <Label>Network</Label>
+   813→                    <Input
+   814→                      value={
+   815→                        selectedMethod === "USDT_TRC20" ? "TRC20" : "ERC20"
+   816→                      }
+   817→                      disabled
+   818→                    />
+   819→                  </div>
+   820→                </div>
+   821→              </motion.div>
+   822→            )}
+   823→
+   824→            {selectedMethod === "MANUAL" && (
+   825→              <motion.div {...fadeUp} className="flex flex-col gap-4">
+   826→                <Separator />
+   827→                <h3 className="text-sm font-semibold">Manual Transfer Details</h3>
+   828→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+   829→                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+   830→                    <Label htmlFor="manual-beneficiary">Beneficiary Name *</Label>
+   831→                    <Input
+   832→                      id="manual-beneficiary"
+   833→                      value={manualBeneficiary}
+   834→                      onChange={(e) => setManualBeneficiary(e.target.value)}
+   835→                      placeholder="Company or individual name"
+   836→                    />
+   837→                  </div>
+   838→                  <div className="flex flex-col gap-1.5">
+   839→                    <Label htmlFor="manual-country">Country *</Label>
+   840→                    <Select
+   841→                      value={manualCountry}
+   842→                      onValueChange={setManualCountry}
+   843→                    >
+   844→                      <SelectTrigger id="manual-country">
+   845→                        <SelectValue placeholder="Select country" />
+   846→                      </SelectTrigger>
+   847→                      <SelectContent>
+   848→                        {COUNTRY_LIST.map((c) => (
+   849→                          <SelectItem key={c} value={c}>
+   850→                            {c}
+   851→                          </SelectItem>
+   852→                        ))}
+   853→                      </SelectContent>
+   854→                    </Select>
+   855→                  </div>
+   856→                  <div className="flex flex-col gap-1.5">
+   857→                    <Label htmlFor="manual-network">Network *</Label>
+   858→                    <Input
+   859→                      id="manual-network"
+   860→                      value={manualNetwork}
+   861→                      onChange={(e) => setManualNetwork(e.target.value)}
+   862→                      placeholder="e.g. SWIFT, ACH"
+   863→                    />
+   864→                  </div>
+   865→                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+   866→                    <Label htmlFor="manual-instructions">Instructions *</Label>
+   867→                    <Textarea
+   868→                      id="manual-instructions"
+   869→                      value={manualInstructions}
+   870→                      onChange={(e) => setManualInstructions(e.target.value)}
+   871→                      placeholder="Detailed transfer instructions"
+   872→                      rows={4}
+   873→                    />
+   874→                  </div>
+   875→                </div>
+   876→              </motion.div>
+   877→            )}
+   878→          </div>
+   879→        )}
+   880→      </Card>
+   881→    );
+   882→  }
+   883→
+   884→  // STEP 3: Validation
+   885→  function renderValidation() {
+   886→    if (validateMutation.isPending) {
+   887→      return (
+   888→        <Card className="flex flex-col items-center justify-center gap-4 border-border/60 bg-card/60 p-12 backdrop-blur-xl">
+   889→          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+   890→          <p className="text-sm text-muted-foreground">Validating payout...</p>
+   891→        </Card>
+   892→      );
+   893→    }
+   894→
+   895→    if (validateMutation.isError) {
+   896→      const errMsg =
+   897→        (validateMutation.error as Error & { code?: string })?.code ||
+   898→        validateMutation.error?.message ||
+   899→        "Validation failed";
+   900→      return (
+   901→        <Card className="border-border/60 bg-card/60 p-6 backdrop-blur-xl">
+   902→          <div className="flex flex-col items-center gap-4 py-8">
+   903→            <div className="rounded-xl bg-rose-500/10 p-3">
+   904→              <AlertTriangle className="h-6 w-6 text-rose-400" />
+   905→            </div>
+   906→            <p className="text-sm font-medium text-foreground">
+   907→              Validation Failed
+   908→            </p>
+   909→            <p className="text-sm text-muted-foreground">{errMsg}</p>
+   910→            <Button
+   911→              variant="outline"
+   912→              size="sm"
+   913→              className="gap-1.5"
+   914→              onClick={handleValidate}
+   915→            >
+   916→              <RefreshCw className="h-3.5 w-3.5" />
+   917→              Retry Validation
+   918→            </Button>
+   919→          </div>
+   920→        </Card>
+   921→      );
+   922→    }
+   923→
+   924→    if (!validationResult) {
+   925→      return (
+   926→        <Card className="border-border/60 bg-card/60 p-6 backdrop-blur-xl">
+   927→          <p className="text-sm text-muted-foreground">
+   928→            Click "Next" to validate the payout before creation.
+   929→          </p>
+   930→        </Card>
+   931→      );
+   932→    }
+   933→
+   934→    const v = validationResult;
+   935→    return (
+   936→      <Card className="border-border/60 bg-card/60 p-6 backdrop-blur-xl">
+   937→        <h2 className="text-base font-semibold">Validation Result</h2>
+   938→        <p className="mt-1 text-sm text-muted-foreground">
+   939→          Review the validated payout details before confirming.
+   940→        </p>
+   941→
+   942→        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+   943→          <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+   944→            <p className="text-xs text-muted-foreground">Source Amount</p>
+   945→            <p className="mt-1 font-mono text-lg font-semibold">
+   946→              {formatCurrency(v.sourceAmount, v.sourceCurrency)}
+   947→            </p>
+   948→          </div>
+   949→          <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+   950→            <p className="text-xs text-muted-foreground">Payout Amount</p>
+   951→            <p className="mt-1 font-mono text-lg font-semibold">
+   952→              {formatCurrency(v.payoutAmount, v.payoutCurrency)}
+   953→            </p>
+   954→          </div>
+   955→          <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+   956→            <p className="text-xs text-muted-foreground">FX Required</p>
+   957→            <p className="mt-1 text-sm font-medium">
+   958→              {v.fxRequired ? "Yes" : "No"}
+   959→            </p>
+   960→            {v.fxRequired && v.fxStatus && (
+   961→              <Badge
+   962→                variant="outline"
+   963→                className="mt-1 text-amber-400"
+   964→              >
+   965→                {v.fxStatus}
+   966→              </Badge>
+   967→            )}
+   968→          </div>
+   969→          <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+   970→            <p className="text-xs text-muted-foreground">Initial Status</p>
+   971→            <p className="mt-1 text-sm font-medium capitalize">
+   972→              {v.initialStatus.replace(/_/g, " ")}
+   973→            </p>
+   974→          </div>
+   975→          <div className="rounded-lg border border-border/60 bg-background/40 p-4 sm:col-span-2">
+   976→            <p className="text-xs text-muted-foreground">
+   977→              Available After Reservation
+   978→            </p>
+   979→            <p className="mt-1 font-mono text-sm font-semibold">
+   980→              {formatCurrency(v.availableAfterReservation, v.sourceCurrency)}
+   981→            </p>
+   982→          </div>
+   983→          <div className="rounded-lg border border-border/60 bg-background/40 p-4 sm:col-span-2">
+   984→            <p className="text-xs text-muted-foreground">Destination</p>
+   985→            <p className="mt-1 text-sm font-medium">
+   986→              {METHOD_INFO[v.destination.method]?.label || v.destination.method}
+   987→            </p>
+   988→            <p className="mt-0.5 text-sm text-muted-foreground">
+   989→              {v.destination.beneficiaryName}
+   990→              {v.destination.country && ` · ${v.destination.country}`}
+   991→            </p>
+   992→          </div>
+   993→        </div>
+   994→      </Card>
+   995→    );
+   996→  }
+   997→
+   998→  // STEP 4: Confirmation
+   999→  function renderConfirmation() {
+  1000→    const v = validationResult;
+  1001→    if (!v || !selectedWallet) return null;
+  1002→
+  1003→    return (
+  1004→      <Card className="border-border/60 bg-card/60 p-6 backdrop-blur-xl">
+  1005→        <h2 className="text-base font-semibold">Confirm Payout</h2>
+  1006→        <p className="mt-1 text-sm text-muted-foreground">
+  1007→          Please review all details before creating the payout.
+  1008→        </p>
+  1009→
+  1010→        {/* Warning */}
+  1011→        <div className="mt-5 flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+  1012→          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+  1013→          <div>
+  1014→            <p className="text-sm font-medium text-amber-300">
+  1015→              Funds will be reserved
+  1016→            </p>
+  1017→            <p className="mt-0.5 text-xs text-amber-200/70">
+  1018→              The amount will be reserved from your Commerce Settlement Wallet.
+  1019→              The transfer is processed manually.
+  1020→            </p>
+  1021→          </div>
+  1022→        </div>
+  1023→
+  1024→        {/* Summary */}
+  1025→        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+  1026→          <div>
+  1027→            <p className="text-xs text-muted-foreground">Source Wallet</p>
+  1028→            <p className="mt-0.5 text-sm font-medium">
+  1029→              {selectedWallet.label || selectedWallet.currency}
+  1030→            </p>
+  1031→          </div>
+  1032→          <div>
+  1033→            <p className="text-xs text-muted-foreground">Source Amount</p>
+  1034→            <p className="mt-0.5 font-mono text-sm font-semibold">
+  1035→              {formatCurrency(v.sourceAmount, v.sourceCurrency)}
+  1036→            </p>
+  1037→          </div>
+  1038→          <div>
+  1039→            <p className="text-xs text-muted-foreground">Payout Amount</p>
+  1040→            <p className="mt-0.5 font-mono text-sm font-semibold">
+  1041→              {formatCurrency(v.payoutAmount, v.payoutCurrency)}
+  1042→            </p>
+  1043→          </div>
+  1044→          <div>
+  1045→            <p className="text-xs text-muted-foreground">Method</p>
+  1046→            <p className="mt-0.5 text-sm font-medium">
+  1047→              {METHOD_INFO[v.destination.method]?.label}
+  1048→            </p>
+  1049→          </div>
+  1050→          <div>
+  1051→            <p className="text-xs text-muted-foreground">Beneficiary</p>
+  1052→            <p className="mt-0.5 text-sm">{v.destination.beneficiaryName}</p>
+  1053→          </div>
+  1054→          <div>
+  1055→            <p className="text-xs text-muted-foreground">Country</p>
+  1056→            <p className="mt-0.5 text-sm">
+  1057→              {v.destination.country || "—"}
+  1058→            </p>
+  1059→          </div>
+  1060→          {v.fxRequired && (
+  1061→            <div className="sm:col-span-2">
+  1062→              <p className="text-xs text-muted-foreground">FX Status</p>
+  1063→              <p className="mt-0.5 text-sm text-amber-400">
+  1064→                FX will be processed manually
+  1065→              </p>
+  1066→            </div>
+  1067→          )}
+  1068→        </div>
+  1069→
+  1070→        {/* Error */}
+  1071→        {createError && (
+  1072→          <div className="mt-4 flex items-start gap-3 rounded-lg border border-rose-500/30 bg-rose-500/5 p-4">
+  1073→            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-400" />
+  1074→            <div>
+  1075→              <p className="text-sm font-medium text-rose-300">
+  1076→                Payout creation failed
+  1077→              </p>
+  1078→              <p className="mt-0.5 text-xs text-rose-200/70">{createError}</p>
+  1079→            </div>
+  1080→          </div>
+  1081→        )}
+  1082→
+  1083→        {/* Create button */}
+  1084→        <div className="mt-6 flex justify-end">
+  1085→          <Button
+  1086→            className="gap-1.5"
+  1087→            onClick={handleCreate}
+  1088→            disabled={createMutation.isPending}
+  1089→          >
+  1090→            {createMutation.isPending ? (
+  1091→              <Loader2 className="h-4 w-4 animate-spin" />
+  1092→            ) : (
+  1093→              <CheckCircle2 className="h-4 w-4" />
+  1094→            )}
+  1095→            Create Payout
+  1096→          </Button>
+  1097→        </div>
+  1098→      </Card>
+  1099→    );
+  1100→  }
+  1101→
+  1102→  // STEP 5: Created
+  1103→  function renderCreated() {
+  1104→    if (!createdPayout) return null;
+  1105→    return (
+  1106→      <Card className="border-border/60 bg-card/60 p-6 backdrop-blur-xl">
+  1107→        <div className="flex flex-col items-center gap-4 py-6 text-center">
+  1108→          <div className="rounded-full bg-emerald-500/12 p-4">
+  1109→            <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+  1110→          </div>
+  1111→          <div>
+  1112→            <h2 className="text-lg font-semibold">Payout Created</h2>
+  1113→            <p className="mt-1 text-sm text-muted-foreground">
+  1114→              Your payout request has been submitted successfully.
+  1115→            </p>
+  1116→          </div>
+  1117→        </div>
+  1118→
+  1119→        <div className="mx-auto mt-2 max-w-md grid grid-cols-1 gap-4">
+  1120→          <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+  1121→            <p className="text-xs text-muted-foreground">Ticket</p>
+  1122→            <p className="mt-0.5 font-mono text-sm font-medium text-primary">
+  1123→              {createdPayout.ticketCode}
+  1124→            </p>
+  1125→          </div>
+  1126→          <div className="grid grid-cols-2 gap-4">
+  1127→            <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+  1128→              <p className="text-xs text-muted-foreground">Status</p>
+  1129→              <p className="mt-0.5 text-sm font-medium capitalize">
+  1130→                {createdPayout.status.replace(/_/g, " ")}
+  1131→              </p>
+  1132→            </div>
+  1133→            <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+  1134→              <p className="text-xs text-muted-foreground">Reserved</p>
+  1135→              <p className="mt-0.5 font-mono text-sm font-semibold">
+  1136→                {formatCurrency(
+  1137→                  createdPayout.sourceAmount,
+  1138→                  createdPayout.sourceCurrency
+  1139→                )}
+  1140→              </p>
+  1141→            </div>
+  1142→          </div>
+  1143→          <div className="grid grid-cols-2 gap-4">
+  1144→            <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+  1145→              <p className="text-xs text-muted-foreground">Method</p>
+  1146→              <p className="mt-0.5 text-sm font-medium">
+  1147→                {METHOD_INFO[createdPayout.method]?.label}
+  1148→              </p>
+  1149→            </div>
+  1150→            <div className="rounded-lg border border-border/60 bg-background/40 p-4">
+  1151→              <p className="text-xs text-muted-foreground">Beneficiary</p>
+  1152→              <p className="mt-0.5 truncate text-sm">
+  1153→                {createdPayout.beneficiaryName}
+  1154→              </p>
+  1155→            </div>
+  1156→          </div>
+  1157→          {createdPayout.fxRequired && (
+  1158→            <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+  1159→              <AlertTriangle className="h-4 w-4 text-amber-400" />
+  1160→              <p className="text-xs text-amber-300">
+  1161→                FX will be processed manually
+  1162→              </p>
+  1163→            </div>
+  1164→          )}
+  1165→        </div>
+  1166→
+  1167→        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+  1168→          <Button
+  1169→            variant="outline"
+  1170→            onClick={() => router.push(`/commerce/payouts/${createdPayout.id}`)}
+  1171→          >
+  1172→            View Payout
+  1173→          </Button>
+  1174→          <Button
+  1175→            onClick={() => {
+  1176→              resetWizard();
+  1177→            }}
+  1178→          >
+  1179→            Create Another
+  1180→          </Button>
+  1181→        </div>
+  1182→      </Card>
+  1183→    );
+  1184→  }
+  1185→
+  1186→  // ---- Determine which step content to show ----
+  1187→  function renderStepContent() {
+  1188→    switch (step) {
+  1189→      case "source":
+  1190→        return renderSource();
+  1191→      case "destination":
+  1192→        return renderDestination();
+  1193→      case "validation":
+  1194→        return renderValidation();
+  1195→      case "confirmation":
+  1196→        return renderConfirmation();
+  1197→      case "created":
+  1198→        return renderCreated();
+  1199→    }
+  1200→  }
+  1201→
+  1202→  // Determine Next button state
+  1203→  const isNextDisabled =
+  1204→    (step === "source" && !isSourceValid) ||
+  1205→    (step === "destination" && !isDestinationValid) ||
+  1206→    step === "validation" ||
+  1207→    step === "confirmation" ||
+  1208→    step === "created";
+  1209→
+  1210→  const isLastStep = step === "created";
+  1211→  const isFirstStep = step === "source";
+  1212→  const isConfirmStep = step === "confirmation";
+  1213→  const isValidationStep = step === "validation";
+  1214→
+  1215→  return (
+  1216→    <div className="flex flex-col gap-6">
+  1217→      <PageHeader
+  1218→        title="New Payout"
+  1219→        description="Create a new merchant payout request"
+  1220→        breadcrumbs={[
+  1221→          { label: "Commerce", href: "/commerce" },
+  1222→          { label: "Payouts", href: "/commerce/payouts" },
+  1223→          { label: "New" },
+  1224→        ]}
+  1225→        actions={
+  1226→          <Button variant="ghost" size="sm" onClick={handleCancel}>
+  1227→            Cancel
+  1228→          </Button>
+  1229→        }
+  1230→      />
+  1231→
+  1232→      {/* Step Indicator */}
+  1233→      <StepIndicator currentStep={step} steps={STEPS} />
+  1234→
+  1235→      {/* Step Content */}
+  1236→      <motion.div
+  1237→        key={step}
+  1238→        {...fadeUp}
+  1239→        className="flex flex-col gap-4"
+  1240→      >
+  1241→        {renderStepContent()}
+  1242→
+  1243→        {/* Navigation Buttons */}
+  1244→        {!isLastStep && (
+  1245→          <div className="flex items-center justify-between">
+  1246→            <Button
+  1247→              variant="outline"
+  1248→              size="sm"
+  1249→              onClick={goBack}
+  1250→              disabled={isFirstStep}
+  1251→              className="gap-1.5"
+  1252→            >
+  1253→              <ArrowLeft className="h-3.5 w-3.5" />
+  1254→              Back
+  1255→            </Button>
+  1256→
+  1257→            {isValidationStep ? (
+  1258→              <Button
+  1259→                size="sm"
+  1260→                className="gap-1.5"
+  1261→                onClick={handleValidate}
+  1262→                disabled={validateMutation.isPending}
+  1263→              >
+  1264→                {validateMutation.isPending ? (
+  1265→                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+  1266→                ) : (
+  1267→                  <ArrowRight className="h-3.5 w-3.5" />
+  1268→                )}
+  1269→                Validate &amp; Continue
+  1270→              </Button>
+  1271→            ) : isConfirmStep ? null : (
+  1272→              <Button
+  1273→                size="sm"
+  1274→                className="gap-1.5"
+  1275→                onClick={goNext}
+  1276→                disabled={isNextDisabled}
+  1277→              >
+  1278→                Next
+  1279→                <ArrowRight className="h-3.5 w-3.5" />
+  1280→              </Button>
+  1281→            )}
+  1282→          </div>
+  1283→        )}
+  1284→      </motion.div>
+  1285→    </div>
+  1286→  );
+  1287→}
