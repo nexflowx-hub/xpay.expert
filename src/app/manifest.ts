@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 const APP_NAME = "XPay.Expert";
 const APP_SHORT_NAME = "XPay";
 const APP_DESCRIPTION =
-  "XPay.Expert is the enterprise fintech platform for global payments, FX, treasury and risk. Accept cards, Pix, MBWay and crypto with one API.";
+  "Enterprise payments infrastructure — accept cards, Pix, MBWay and crypto with one unified API.";
 const THEME_COLOR = "#0B1220";
 const BACKGROUND_COLOR = "#0B1220";
 const START_URL = "/";
@@ -62,21 +62,28 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Dashboard",
         short_name: "Dashboard",
         description: "Open the merchant dashboard overview",
-        url: "/?view=dashboard",
+        url: "/commerce/overview",
         icons: [{ src: "/icon-192.png", sizes: "192x192" }],
       },
       {
         name: "Payments",
         short_name: "Payments",
-        description: "View transactions",
-        url: "/?view=payments",
+        description: "View transactions and payments",
+        url: "/commerce/payments",
         icons: [{ src: "/icon-192.png", sizes: "192x192" }],
       },
       {
         name: "Wallets",
         short_name: "Wallets",
         description: "View wallet balances",
-        url: "/?view=wallets",
+        url: "/commerce/wallets",
+        icons: [{ src: "/icon-192.png", sizes: "192x192" }],
+      },
+      {
+        name: "New Payout",
+        short_name: "Payout",
+        description: "Create a new merchant payout",
+        url: "/commerce/payouts/new",
         icons: [{ src: "/icon-192.png", sizes: "192x192" }],
       },
     ],
