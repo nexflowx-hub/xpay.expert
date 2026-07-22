@@ -1,0 +1,1396 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import * as React from "react";
+     4→     4→import { motion, AnimatePresence } from "framer-motion";
+     5→     5→import { Button } from "@/components/ui/button";
+     6→     6→import { Badge } from "@/components/ui/badge";
+     7→     7→import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+     8→     8→import { Separator } from "@/components/ui/separator";
+     9→     9→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    10→    10→import { useRouter } from "next/navigation";
+    11→    11→import {
+    12→    12→  cn,
+    13→    13→  formatCurrency,
+    14→    14→  formatNumber,
+    15→    15→  formatPercent,
+    16→    16→} from "@/lib/utils";
+    17→    17→import { APP_NAME, PAYMENT_METHODS } from "@/config";
+    18→    18→import { PAYMENT_LOGOS } from "@/components/shared/payment-logos";
+    19→    19→import { XSymbol } from "@/components/shared/x-symbol";
+    20→    20→import { sdkSnippets } from "@/lib/sdk-snippets";
+    21→    21→import {
+    22→    22→  AnimatedCounter,
+    23→    23→  GlowCard,
+    24→    24→  GradientBorder,
+    25→    25→} from "@/components/shared";
+    26→    26→import { toast } from "sonner";
+    27→    27→import {
+    28→    28→  Menu,
+    29→    29→  X,
+    30→    30→  ArrowRight,
+    31→    31→  Copy,
+    32→    32→  ShieldCheck,
+    33→    33→  Globe2,
+    34→    34→  Wallet,
+    35→    35→  Landmark,
+    36→    36→  ShieldAlert,
+    37→    37→  ShoppingBag,
+    38→    38→  Code2,
+    39→    39→  Lock,
+    40→    40→  Gauge,
+    41→    41→  Webhook,
+    42→    42→  Sparkles,
+    43→    43→  Github,
+    44→    44→  Linkedin,
+    45→    45→  Twitter,
+    46→    46→  Terminal,
+    47→    47→  Activity,
+    48→    48→  ArrowUpRight,
+    49→    49→  CreditCard,
+    50→    50→  RefreshCw,
+    51→    51→  LineChart,
+    52→    52→  ChevronRight,
+    53→    53→  Quote,
+    54→    54→  Rocket,
+    55→    55→  Plug,
+    56→    56→} from "lucide-react";
+    57→    57→import { useT } from "@/lib/i18n";
+    58→    58→import { LanguageSwitcher } from "@/components/shared/language-switcher";
+    59→    59→
+    60→    60→// ----------------------------------------------------------------------------
+    61→    61→// Helpers
+    62→    62→// ----------------------------------------------------------------------------
+    63→    63→
+    64→    64→const NAV_LINKS = ["nav.product", "nav.pricing", "nav.developers", "nav.enterprise", "nav.docs"];
+    65→    65→
+    66→    66→const LANGS: { id: keyof typeof sdkSnippets; label: string }[] = [
+    67→    67→  { id: "curl", label: "cURL" },
+    68→    68→  { id: "node", label: "Node" },
+    69→    69→  { id: "python", label: "Python" },
+    70→    70→  { id: "php", label: "PHP" },
+    71→    71→  { id: "go", label: "Go" },
+    72→    72→];
+    73→    73→
+    74→    74→const RESPONSE_JSON = `{
+    75→    75→  "id": "pay_2k9Lm3QxA1b7",
+    76→    76→  "object": "payment",
+    77→    77→  "status": "succeeded",
+    78→    78→  "amount": 4200,
+    79→    79→  "currency": "EUR",
+    80→    80→  "method": "pix",
+    81→    81→  "customer": "cus_001",
+    82→    82→  "description": "Pro Plan — Annual",
+    83→    83→  "created": "2025-01-14T09:32:11Z",
+    84→    84→  "risk": { "score": 4, "level": "low" }
+    85→    85→}`;
+    86→    86→
+    87→    87→function Reveal({
+    88→    88→  children,
+    89→    89→  delay = 0,
+    90→    90→  className,
+    91→    91→  y = 18,
+    92→    92→}: {
+    93→    93→  children: React.ReactNode;
+    94→    94→  delay?: number;
+    95→    95→  className?: string;
+    96→    96→  y?: number;
+    97→    97→}) {
+    98→    98→  return (
+    99→    99→    <motion.div
+   100→   100→      initial={{ opacity: 0, y }}
+   101→   101→      whileInView={{ opacity: 1, y: 0 }}
+   102→   102→      viewport={{ once: true, margin: "-80px" }}
+   103→   103→      transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1], delay }}
+   104→   104→      className={className}
+   105→   105→    >
+   106→   106→      {children}
+   107→   107→    </motion.div>
+   108→   108→  );
+   109→   109→}
+   110→   110→
+   111→   111→function useCopy() {
+   112→   112→  return React.useCallback((text: string, label = "Copied") => {
+   113→   113→    if (typeof navigator !== "undefined" && navigator.clipboard) {
+   114→   114→      navigator.clipboard.writeText(text).then(
+   115→   115→        () => toast.success(label),
+   116→   116→        () => toast.error("Copy failed")
+   117→   117→      );
+   118→   118→    } else {
+   119→   119→      toast.error("Clipboard unavailable");
+   120→   120→    }
+   121→   121→  }, []);
+   122→   122→}
+   123→   123→
+   124→   124→// ----------------------------------------------------------------------------
+   125→   125→// Brand logo
+   126→   126→// ----------------------------------------------------------------------------
+   127→   127→
+   128→   128→function BrandLogo({ className }: { className?: string }) {
+   129→   129→  return (
+   130→   130→    <div className={cn("flex items-center gap-2.5", className)}>
+   131→   131→      <XSymbol className="size-8" />
+   132→   132→      <span className="text-[17px] font-semibold tracking-tight text-foreground">
+   133→   133→        {APP_NAME}
+   134→   134→      </span>
+   135→   135→    </div>
+   136→   136→  );
+   137→   137→}
+   138→   138→
+   139→   139→// ----------------------------------------------------------------------------
+   140→   140→// Navigation
+   141→   141→// ----------------------------------------------------------------------------
+   142→   142→
+   143→   143→function NavBar() {
+   144→   144→  const router = useRouter();
+   145→   145→  const t = useT();
+   146→   146→  const [open, setOpen] = React.useState(false);
+   147→   147→  const [scrolled, setScrolled] = React.useState(false);
+   148→   148→
+   149→   149→  React.useEffect(() => {
+   150→   150→    const onScroll = () => setScrolled(window.scrollY > 12);
+   151→   151→    onScroll();
+   152→   152→    window.addEventListener("scroll", onScroll, { passive: true });
+   153→   153→    return () => window.removeEventListener("scroll", onScroll);
+   154→   154→  }, []);
+   155→   155→
+   156→   156→  return (
+   157→   157→    <header
+   158→   158→      className={cn(
+   159→   159→        "sticky top-0 z-50 w-full transition-all duration-300",
+   160→   160→        scrolled
+   161→   161→          ? "border-b border-border/60 bg-background/70 backdrop-blur-xl"
+   162→   162→          : "border-b border-transparent bg-transparent"
+   163→   163→      )}
+   164→   164→    >
+   165→   165→      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+   166→   166→        <BrandLogo />
+   167→   167→
+   168→   168→        <nav className="hidden items-center gap-1 md:flex">
+   169→   169→          {NAV_LINKS.map((l) => (
+   170→   170→            <a
+   171→   171→              key={l}
+   172→   172→              href="#"
+   173→   173→              onClick={(e) => e.preventDefault()}
+   174→   174→              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+   175→   175→            >
+   176→   176→              {t(l)}
+   177→   177→            </a>
+   178→   178→          ))}
+   179→   179→          <a
+   180→   180→            href="/support"
+   181→   181→            className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+   182→   182→          >
+   183→   183→            Support
+   184→   184→          </a>
+   185→   185→        </nav>
+   186→   186→
+   187→   187→        <div className="hidden items-center gap-2 md:flex">
+   188→   188→          <LanguageSwitcher variant="full" />
+   189→   189→          <Button
+   190→   190→            variant="ghost"
+   191→   191→            size="sm"
+   192→   192→            onClick={() => router.push("/login")}
+   193→   193→            className="text-muted-foreground hover:text-foreground"
+   194→   194→          >
+   195→   195→            {t("common.signin")}
+   196→   196→          </Button>
+   197→   197→          <Button
+   198→   198→            size="sm"
+   199→   199→            onClick={() => router.push("/register")}
+   200→   200→            className="glow-blue-sm"
+   201→   201→          >
+   202→   202→            {t("common.signup")}
+   203→   203→            <ArrowRight className="size-3.5" />
+   204→   204→          </Button>
+   205→   205→        </div>
+   206→   206→
+   207→   207→        <button
+   208→   208→          aria-label={t("nav.toggleMenu")}
+   209→   209→          className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
+   210→   210→          onClick={() => setOpen((o) => !o)}
+   211→   211→        >
+   212→   212→          {open ? <X className="size-5" /> : <Menu className="size-5" />}
+   213→   213→        </button>
+   214→   214→      </div>
+   215→   215→
+   216→   216→      <AnimatePresence>
+   217→   217→        {open && (
+   218→   218→          <motion.div
+   219→   219→            initial={{ opacity: 0, height: 0 }}
+   220→   220→            animate={{ opacity: 1, height: "auto" }}
+   221→   221→            exit={{ opacity: 0, height: 0 }}
+   222→   222→            transition={{ duration: 0.25, ease: "easeOut" }}
+   223→   223→            className="overflow-hidden border-b border-border/60 bg-background/95 backdrop-blur-xl md:hidden"
+   224→   224→          >
+   225→   225→            <div className="flex flex-col gap-1 px-5 py-4">
+   226→   226→              {NAV_LINKS.map((l) => (
+   227→   227→                <a
+   228→   228→                  key={l}
+   229→   229→                  href="#"
+   230→   230→                  onClick={(e) => {
+   231→   231→                    e.preventDefault();
+   232→   232→                    setOpen(false);
+   233→   233→                  }}
+   234→   234→                  className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+   235→   235→                >
+   236→   236→                  {t(l)}
+   237→   237→                </a>
+   238→   238→              ))}
+   239→   239→              <Separator className="my-2" />
+   240→   240→              <LanguageSwitcher variant="full" className="w-full justify-start" />
+   241→   241→              <Button
+   242→   242→                variant="ghost"
+   243→   243→                onClick={() => { router.push("/login"); setOpen(false); }}
+   244→   244→                className="justify-start"
+   245→   245→              >
+   246→   246→                {t("common.signin")}
+   247→   247→              </Button>
+   248→   248→              <Button onClick={() => { router.push("/register"); setOpen(false); }} className="justify-center">
+   249→   249→                {t("common.signup")}
+   250→   250→                <ArrowRight className="size-4" />
+   251→   251→              </Button>
+   252→   252→            </div>
+   253→   253→          </motion.div>
+   254→   254→        )}
+   255→   255→      </AnimatePresence>
+   256→   256→    </header>
+   257→   257→  );
+   258→   258→}
+   259→   259→
+   260→   260→// ----------------------------------------------------------------------------
+   261→   261→// Animated World Map (SVG dotted continents + flowing payment lines)
+   262→   262→// ----------------------------------------------------------------------------
+   263→   263→
+   264→   264→type Hub = { id: string; x: number; y: number; label: string };
+   265→   265→
+   266→   266→const HUBS: Hub[] = [
+   267→   267→  { id: "ny", x: 175, y: 150, label: "New York" },
+   268→   268→  { id: "sp", x: 245, y: 285, label: "São Paulo" },
+   269→   269→  { id: "li", x: 392, y: 138, label: "Lisbon" },
+   270→   270→  { id: "lo", x: 418, y: 112, label: "London" },
+   271→   271→  { id: "be", x: 438, y: 100, label: "Berlin" },
+   272→   272→  { id: "du", x: 525, y: 180, label: "Dubai" },
+   273→   273→  { id: "sg", x: 615, y: 232, label: "Singapore" },
+   274→   274→  { id: "tk", x: 685, y: 148, label: "Tokyo" },
+   275→   275→  { id: "sy", x: 700, y: 300, label: "Sydney" },
+   276→   276→];
+   277→   277→
+   278→   278→const LINES: [string, string][] = [
+   279→   279→  ["ny", "lo"],
+   280→   280→  ["ny", "sp"],
+   281→   281→  ["sp", "li"],
+   282→   282→  ["lo", "du"],
+   283→   283→  ["du", "sg"],
+   284→   284→  ["sg", "sy"],
+   285→   285→  ["lo", "tk"],
+   286→   286→  ["tk", "sg"],
+   287→   287→  ["li", "be"],
+   288→   288→  ["ny", "sg"],
+   289→   289→];
+   290→   290→
+   291→   291→const CONTINENTS = [
+   292→   292→  { cx: 150, cy: 135, rx: 78, ry: 58 }, // North America
+   293→   293→  { cx: 228, cy: 275, rx: 46, ry: 52 }, // South America
+   294→   294→  { cx: 420, cy: 110, rx: 50, ry: 32 }, // Europe
+   295→   295→  { cx: 432, cy: 215, rx: 52, ry: 64 }, // Africa
+   296→   296→  { cx: 565, cy: 155, rx: 95, ry: 56 }, // Asia
+   297→   297→  { cx: 662, cy: 295, rx: 42, ry: 26 }, // Oceania
+   298→   298→];
+   299→   299→
+   300→   300→function quadPath(a: Hub, b: Hub) {
+   301→   301→  const mx = (a.x + b.x) / 2;
+   302→   302→  const my = (a.y + b.y) / 2;
+   303→   303→  // perpendicular lift for an arc
+   304→   304→  const dx = b.x - a.x;
+   305→   305→  const dy = b.y - a.y;
+   306→   306→  const len = Math.hypot(dx, dy) || 1;
+   307→   307→  const lift = Math.min(70, len * 0.32);
+   308→   308→  const cx = mx + (-dy / len) * lift;
+   309→   309→  const cy = my + (dx / len) * lift - 12;
+   310→   310→  return `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+   311→   311→}
+   312→   312→
+   313→   313→function WorldMap() {
+   314→   314→  const dots = React.useMemo(() => {
+   315→   315→    const out: { x: number; y: number; strong: boolean }[] = [];
+   316→   316→    const step = 16;
+   317→   317→    for (let x = 12; x < 800; x += step) {
+   318→   318→      for (let y = 12; y < 380; y += step) {
+   319→   319→        let strong = false;
+   320→   320→        for (const c of CONTINENTS) {
+   321→   321→          const u = (x - c.cx) / c.rx;
+   322→   322→          const v = (y - c.cy) / c.ry;
+   323→   323→          if (u * u + v * v <= 1) {
+   324→   324→            strong = true;
+   325→   325→            break;
+   326→   326→          }
+   327→   327→        }
+   328→   328→        if (strong) out.push({ x, y, strong: true });
+   329→   329→      }
+   330→   330→    }
+   331→   331→    return out;
+   332→   332→  }, []);
+   333→   333→
+   334→   334→  return (
+   335→   335→    <svg
+   336→   336→      viewBox="0 0 800 380"
+   337→   337→      className="h-full w-full"
+   338→   338→      preserveAspectRatio="xMidYMid meet"
+   339→   339→      aria-hidden
+   340→   340→    >
+   341→   341→      <defs>
+   342→   342→        <radialGradient id="mapGlow" cx="50%" cy="40%" r="60%">
+   343→   343→          <stop offset="0%" stopColor="oklch(0.62 0.21 258)" stopOpacity="0.35" />
+   344→   344→          <stop offset="60%" stopColor="oklch(0.62 0.21 258)" stopOpacity="0.05" />
+   345→   345→          <stop offset="100%" stopColor="transparent" />
+   346→   346→        </radialGradient>
+   347→   347→        <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+   348→   348→          <stop offset="0%" stopColor="oklch(0.62 0.21 258)" stopOpacity="0" />
+   349→   349→          <stop offset="50%" stopColor="oklch(0.68 0.19 258)" stopOpacity="0.95" />
+   350→   350→          <stop offset="100%" stopColor="oklch(0.62 0.21 258)" stopOpacity="0" />
+   351→   351→        </linearGradient>
+   352→   352→        <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+   353→   353→          <feGaussianBlur stdDeviation="2.4" result="b" />
+   354→   354→          <feMerge>
+   355→   355→            <feMergeNode in="b" />
+   356→   356→            <feMergeNode in="SourceGraphic" />
+   357→   357→          </feMerge>
+   358→   358→        </filter>
+   359→   359→      </defs>
+   360→   360→
+   361→   361→      {/* background glow */}
+   362→   362→      <rect x="0" y="0" width="800" height="380" fill="url(#mapGlow)" />
+   363→   363→
+   364→   364→      {/* dotted continents */}
+   365→   365→      <g>
+   366→   366→        {dots.map((d, i) => (
+   367→   367→          <circle
+   368→   368→            key={i}
+   369→   369→            cx={d.x}
+   370→   370→            cy={d.y}
+   371→   371→            r={1.25}
+   372→   372→            fill="oklch(0.78 0.10 258)"
+   373→   373→            opacity={0.55}
+   374→   374→          />
+   375→   375→        ))}
+   376→   376→      </g>
+   377→   377→
+   378→   378→      {/* payment lines: static base + animated flowing dashes */}
+   379→   379→      <g>
+   380→   380→        {LINES.map(([from, to], i) => {
+   381→   381→          const a = HUBS.find((h) => h.id === from)!;
+   382→   382→          const b = HUBS.find((h) => h.id === to)!;
+   383→   383→          const d = quadPath(a, b);
+   384→   384→          return (
+   385→   385→            <g key={i}>
+   386→   386→              <path d={d} fill="none" stroke="oklch(0.62 0.21 258)" strokeWidth={1} opacity={0.18} />
+   387→   387→              <path
+   388→   388→                d={d}
+   389→   389→                fill="none"
+   390→   390→                stroke="url(#lineGrad)"
+   391→   391→                strokeWidth={1.6}
+   392→   392→                className="animate-dash"
+   393→   393→                filter="url(#softGlow)"
+   394→   394→              />
+   395→   395→            </g>
+   396→   396→          );
+   397→   397→        })}
+   398→   398→      </g>
+   399→   399→
+   400→   400→      {/* hubs */}
+   401→   401→      <g>
+   402→   402→        {HUBS.map((h) => (
+   403→   403→          <g key={h.id}>
+   404→   404→            <circle cx={h.x} cy={h.y} r={6} fill="oklch(0.62 0.21 258)" opacity={0.18} />
+   405→   405→            <circle cx={h.x} cy={h.y} r={3} fill="oklch(0.78 0.16 258)" filter="url(#softGlow)">
+   406→   406→              <animate
+   407→   407→                attributeName="opacity"
+   408→   408→                values="1;0.4;1"
+   409→   409→                dur="2.4s"
+   410→   410→                repeatCount="indefinite"
+   411→   411→              />
+   412→   412→            </circle>
+   413→   413→            <circle cx={h.x} cy={h.y} r={1.4} fill="#fff" />
+   414→   414→          </g>
+   415→   415→        ))}
+   416→   416→      </g>
+   417→   417→    </svg>
+   418→   418→  );
+   419→   419→}
+   420→   420→
+   421→   421→// Floating currency badges around the map
+   422→   422→function CurrencyFloats() {
+   423→   423→  const items = [
+   424→   424→    { sym: "$", x: "20%", y: "32%", delay: 0 },
+   425→   425→    { sym: "€", x: "50%", y: "18%", delay: 0.6 },
+   426→   426→    { sym: "R$", x: "30%", y: "70%", delay: 1.2 },
+   427→   427→    { sym: "₿", x: "76%", y: "60%", delay: 1.8 },
+   428→   428→  ];
+   429→   429→  return (
+   430→   430→    <>
+   431→   431→      {items.map((it, i) => (
+   432→   432→        <motion.div
+   433→   433→          key={i}
+   434→   434→          className="pointer-events-none absolute grid size-9 place-items-center rounded-full border border-primary/40 bg-background/70 text-sm font-semibold text-primary backdrop-blur-md"
+   435→   435→          style={{ left: it.x, top: it.y }}
+   436→   436→          animate={{ y: [0, -10, 0], opacity: [0.7, 1, 0.7] }}
+   437→   437→          transition={{
+   438→   438→            duration: 4.5,
+   439→   439→            repeat: Infinity,
+   440→   440→            ease: "easeInOut",
+   441→   441→            delay: it.delay,
+   442→   442→          }}
+   443→   443→        >
+   444→   444→          {it.sym}
+   445→   445→        </motion.div>
+   446→   446→      ))}
+   447→   447→    </>
+   448→   448→  );
+   449→   449→}
+   450→   450→
+   451→   451→// Live "payment received" toast overlay cycling messages
+   452→   452→const LIVE_PAYMENTS = [
+   453→   453→  { amount: 4200, currency: "EUR", method: "Pix", from: "Lisbon, PT" },
+   454→   454→  { amount: 1299, currency: "USD", method: "Visa", from: "New York, US" },
+   455→   455→  { amount: 8900, currency: "BRL", method: "Pix", from: "São Paulo, BR" },
+   456→   456→  { amount: 159, currency: "GBP", method: "Apple Pay", from: "London, UK" },
+   457→   457→  { amount: 0.012, currency: "BTC", method: "Crypto", from: "Singapore, SG" },
+   458→   458→];
+   459→   459→
+   460→   460→function LivePaymentToast() {
+   461→   461→  const t = useT();
+   462→   462→  const [idx, setIdx] = React.useState(0);
+   463→   463→  React.useEffect(() => {
+   464→   464→    const timer = setInterval(() => setIdx((i) => (i + 1) % LIVE_PAYMENTS.length), 2600);
+   465→   465→    return () => clearInterval(timer);
+   466→   466→  }, []);
+   467→   467→  const p = LIVE_PAYMENTS[idx];
+   468→   468→  return (
+   469→   469→    <motion.div
+   470→   470→      key={idx}
+   471→   471→      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+   472→   472→      animate={{ opacity: 1, y: 0, scale: 1 }}
+   473→   473→      transition={{ duration: 0.35, ease: "easeOut" }}
+   474→   474→      className="absolute left-4 top-4 z-20 flex items-center gap-3 rounded-xl border border-border/70 bg-background/80 px-3.5 py-2.5 backdrop-blur-xl"
+   475→   475→    >
+   476→   476→      <span className="relative flex size-2.5">
+   477→   477→        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+   478→   478→        <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
+   479→   479→      </span>
+   480→   480→      <div className="flex flex-col">
+   481→   481→        <span className="text-[11px] text-muted-foreground">{t("hero.paymentReceived")}</span>
+   482→   482→        <span className="text-sm font-semibold text-foreground">
+   483→   483→          {formatCurrency(p.amount, p.currency)}{" "}
+   484→   484→          <span className="text-muted-foreground">· {p.method}</span>
+   485→   485→        </span>
+   486→   486→      </div>
+   487→   487→      <Separator orientation="vertical" className="h-8" />
+   488→   488→      <span className="text-[11px] text-muted-foreground">{p.from}</span>
+   489→   489→    </motion.div>
+   490→   490→  );
+   491→   491→}
+   492→   492→
+   493→   493→// ----------------------------------------------------------------------------
+   494→   494→// Code block (terminal style) with language tabs + copy
+   495→   495→// ----------------------------------------------------------------------------
+   496→   496→
+   497→   497→function CodeBlock({
+   498→   498→  autoCycle = false,
+   499→   499→  cycleInterval = 3500,
+   500→   500→}: {
+   501→   501→  autoCycle?: boolean;
+   502→   502→  cycleInterval?: number;
+   503→   503→}) {
+   504→   504→  const [lang, setLang] = React.useState<keyof typeof sdkSnippets>("node");
+   505→   505→  const copy = useCopy();
+   506→   506→
+   507→   507→  React.useEffect(() => {
+   508→   508→    if (!autoCycle) return;
+   509→   509→    const t = setInterval(() => {
+   510→   510→      setLang((cur) => {
+   511→   511→        const i = LANGS.findIndex((l) => l.id === cur);
+   512→   512→        return LANGS[(i + 1) % LANGS.length].id;
+   513→   513→      });
+   514→   514→    }, cycleInterval);
+   515→   515→    return () => clearInterval(t);
+   516→   516→  }, [autoCycle, cycleInterval]);
+   517→   517→
+   518→   518→  const code = sdkSnippets[lang];
+   519→   519→
+   520→   520→  return (
+   521→   521→    <div className="overflow-hidden rounded-xl border border-border/60 bg-[oklch(0.13_0.012_255)] shadow-2xl">
+   522→   522→      {/* window chrome */}
+   523→   523→      <div className="flex items-center gap-2 border-b border-border/50 px-4 py-3">
+   524→   524→        <div className="flex gap-1.5">
+   525→   525→          <span className="size-3 rounded-full bg-rose-500/80" />
+   526→   526→          <span className="size-3 rounded-full bg-amber-400/80" />
+   527→   527→          <span className="size-3 rounded-full bg-emerald-500/80" />
+   528→   528→        </div>
+   529→   529→        <span className="ml-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+   530→   530→          <Terminal className="size-3.5" />
+   531→   531→          create-payment.{lang === "curl" ? "sh" : lang}
+   532→   532→        </span>
+   533→   533→        <div className="ml-auto">
+   534→   534→          <Tabs value={lang} onValueChange={(v) => setLang(v as typeof lang)}>
+   535→   535→            <TabsList className="h-8 bg-muted/40 p-0.5">
+   536→   536→              {LANGS.map((l) => (
+   537→   537→                <TabsTrigger
+   538→   538→                  key={l.id}
+   539→   539→                  value={l.id}
+   540→   540→                  className="h-7 px-2.5 text-xs data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
+   541→   541→                >
+   542→   542→                  {l.label}
+   543→   543→                </TabsTrigger>
+   544→   544→              ))}
+   545→   545→            </TabsList>
+   546→   546→          </Tabs>
+   547→   547→        </div>
+   548→   548→      </div>
+   549→   549→
+   550→   550→      {/* code */}
+   551→   551→      <div className="relative">
+   552→   552→        <pre className="scrollbar-thin max-h-[320px] overflow-auto px-5 py-4 font-mono text-[12.5px] leading-relaxed text-foreground/90">
+   553→   553→          <AnimatePresence mode="wait">
+   554→   554→            <motion.code
+   555→   555→              key={lang}
+   556→   556→              initial={{ opacity: 0, y: 4 }}
+   557→   557→              animate={{ opacity: 1, y: 0 }}
+   558→   558→              exit={{ opacity: 0, y: -4 }}
+   559→   559→              transition={{ duration: 0.2 }}
+   560→   560→              className="block whitespace-pre"
+   561→   561→            >
+   562→   562→              {code}
+   563→   563→            </motion.code>
+   564→   564→          </AnimatePresence>
+   565→   565→        </pre>
+   566→   566→        <button
+   567→   567→          onClick={() => copy(code, "Copied to clipboard")}
+   568→   568→          className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/70 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur transition-colors hover:text-foreground"
+   569→   569→        >
+   570→   570→          <Copy className="size-3.5" />
+   571→   571→          Copy
+   572→   572→        </button>
+   573→   573→      </div>
+   574→   574→    </div>
+   575→   575→  );
+   576→   576→}
+   577→   577→
+   578→   578→// ----------------------------------------------------------------------------
+   579→   579→// Section: Hero
+   580→   580→// ----------------------------------------------------------------------------
+   581→   581→
+   582→   582→function Hero() {
+   583→   583→  const router = useRouter();
+   584→   584→  const t = useT();
+   585→   585→  return (
+   586→   586→    <section className="relative overflow-hidden">
+   587→   587→      {/* ambient backgrounds */}
+   588→   588→      <div className="pointer-events-none absolute inset-0 bg-radial-blue" />
+   589→   589→      <div className="pointer-events-none absolute inset-0 bg-grid mask-fade-b opacity-50" />
+   590→   590→      <div className="pointer-events-none absolute -top-40 left-1/2 size-[680px] -translate-x-1/2 rounded-full bg-primary/20 blur-[140px]" />
+   591→   591→
+   592→   592→      {/* floating particles */}
+   593→   593→      <div className="pointer-events-none absolute inset-0">
+   594→   594→        {[
+   595→   595→          { l: "12%", t: "30%", s: 6 },
+   596→   596→          { l: "82%", t: "22%", s: 4 },
+   597→   597→          { l: "68%", t: "70%", s: 5 },
+   598→   598→          { l: "28%", t: "72%", s: 4 },
+   599→   599→          { l: "45%", t: "16%", s: 3 },
+   600→   600→        ].map((p, i) => (
+   601→   601→          <span
+   602→   602→            key={i}
+   603→   603→            className="absolute rounded-full bg-primary/40 blur-[2px] animate-pulse-glow"
+   604→   604→            style={{ left: p.l, top: p.t, width: p.s, height: p.s }}
+   605→   605→          />
+   606→   606→        ))}
+   607→   607→      </div>
+   608→   608→
+   609→   609→      <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-12 px-5 pb-16 pt-16 sm:px-8 lg:grid-cols-2 lg:gap-8 lg:pb-24 lg:pt-24">
+   610→   610→        {/* Left: copy */}
+   611→   611→        <motion.div
+   612→   612→          initial={{ opacity: 0, y: 20 }}
+   613→   613→          animate={{ opacity: 1, y: 0 }}
+   614→   614→          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+   615→   615→          className="flex flex-col justify-center"
+   616→   616→        >
+   617→   617→          <Badge
+   618→   618→            variant="outline"
+   619→   619→            className="mb-5 w-fit gap-1.5 border-primary/30 bg-primary/10 py-1 pl-2 pr-3 text-primary"
+   620→   620→          >
+   621→   621→            <Sparkles className="size-3.5" />
+   622→   622→            <span className="text-xs font-medium">
+   623→   623→              {t("hero.badge")}
+   624→   624→            </span>
+   625→   625→          </Badge>
+   626→   626→
+   627→   627→          <h1 className="text-balance text-4xl font-semibold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+   628→   628→            {t("hero.title")}{" "}
+   629→   629→            <span className="bg-gradient-to-r from-primary via-blue-400 to-cyan-300 bg-clip-text text-transparent text-glow">
+   630→   630→              {t("hero.titleAccent")}
+   631→   631→            </span>
+   632→   632→          </h1>
+   633→   633→
+   634→   634→          <p className="mt-5 max-w-xl text-pretty text-base text-muted-foreground sm:text-lg">
+   635→   635→            {t("hero.subtitle")}
+   636→   636→          </p>
+   637→   637→
+   638→   638→          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+   639→   639→            <Button
+   640→   640→              size="lg"
+   641→   641→              onClick={() => router.push("/register")}
+   642→   642→              className="glow-blue-sm h-11 px-6 text-sm"
+   643→   643→            >
+   644→   644→              {t("hero.cta1")}
+   645→   645→              <ArrowRight className="size-4" />
+   646→   646→            </Button>
+   647→   647→            <Button
+   648→   648→              size="lg"
+   649→   649→              variant="outline"
+   650→   650→              onClick={() => router.push("/register")}
+   651→   651→              className="h-11 border-border/70 bg-background/40 px-6 text-sm backdrop-blur"
+   652→   652→            >
+   653→   653→              {t("hero.cta2")}
+   654→   654→            </Button>
+   655→   655→          </div>
+   656→   656→
+   657→   657→          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+   658→   658→            <span className="inline-flex items-center gap-1.5">
+   659→   659→              <ShieldCheck className="size-3.5 text-primary" />
+   660→   660→              {t("hero.trust")}
+   661→   661→            </span>
+   662→   662→          </div>
+   663→   663→        </motion.div>
+   664→   664→
+   665→   665→        {/* Right: animated world map */}
+   666→   666→        <motion.div
+   667→   667→          initial={{ opacity: 0, scale: 0.96 }}
+   668→   668→          animate={{ opacity: 1, scale: 1 }}
+   669→   669→          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
+   670→   670→          className="relative"
+   671→   671→        >
+   672→   672→          <GradientBorder className="relative h-[360px] overflow-hidden rounded-2xl bg-card/40 backdrop-blur-xl sm:h-[440px]">
+   673→   673→            <div className="absolute inset-0">
+   674→   674→              <WorldMap />
+   675→   675→            </div>
+   676→   676→            <CurrencyFloats />
+   677→   677→            <LivePaymentToast />
+   678→   678→
+   679→   679→            {/* corner caption */}
+   680→   680→            <div className="absolute bottom-3 right-4 z-20 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+   681→   681→              <span className="relative flex size-2">
+   682→   682→                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+   683→   683→                <span className="relative inline-flex size-2 rounded-full bg-primary" />
+   684→   684→              </span>
+   685→   685→              Live payment rail · 47,210 tx/min
+   686→   686→            </div>
+   687→   687→          </GradientBorder>
+   688→   688→
+   689→   689→          {/* code block below hero */}
+   690→   690→          <motion.div
+   691→   691→            initial={{ opacity: 0, y: 24 }}
+   692→   692→            animate={{ opacity: 1, y: 0 }}
+   693→   693→            transition={{ duration: 0.6, delay: 0.35 }}
+   694→   694→            className="mt-5"
+   695→   695→          >
+   696→   696→            <p className="mb-2 text-xs font-medium text-muted-foreground">
+   697→   697→              {t("hero.codeTitle")}
+   698→   698→            </p>
+   699→   699→            <CodeBlock autoCycle />
+   700→   700→          </motion.div>
+   701→   701→        </motion.div>
+   702→   702→      </div>
+   703→   703→    </section>
+   704→   704→  );
+   705→   705→}
+   706→   706→
+   707→   707→// ----------------------------------------------------------------------------
+   708→   708→// Section: Trust bar (marquee)
+   709→   709→// ----------------------------------------------------------------------------
+   710→   710→
+   711→   711→const TRUST_LOGOS = [
+   712→   712→  "NIMBUS",
+   713→   713→  "QUANTA",
+   714→   714→  "VERTEX",
+   715→   715→  "HELIX",
+   716→   716→  "ORBITAL",
+   717→   717→  "MERIDIAN",
+   718→   718→];
+   719→   719→
+   720→   720→function TrustBar() {
+   721→   721→  const t = useT();
+   722→   722→  const row = [...TRUST_LOGOS, ...TRUST_LOGOS];
+   723→   723→  return (
+   724→   724→    <section className="border-y border-border/40 bg-background/40 py-10">
+   725→   725→      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+   726→   726→        <p className="mb-6 text-center text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+   727→   727→          {t("trust.label")}
+   728→   728→        </p>
+   729→   729→        <div className="relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_12%,#000_88%,transparent)] [-webkit-mask-image:linear-gradient(to_right,transparent,#000_12%,#000_88%,transparent)]">
+   730→   730→          <div className="flex w-max animate-[xp-marquee_28s_linear_infinite] items-center gap-14">
+   731→   731→            {row.map((name, i) => (
+   732→   732→              <span
+   733→   733→                key={i}
+   734→   734→                className="select-none text-xl font-semibold tracking-tight text-muted-foreground/55 transition-colors hover:text-foreground"
+   735→   735→              >
+   736→   736→                {name}
+   737→   737→              </span>
+   738→   738→            ))}
+   739→   739→          </div>
+   740→   740→        </div>
+   741→   741→      </div>
+   742→   742→      <style>{`@keyframes xp-marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+   743→   743→    </section>
+   744→   744→  );
+   745→   745→}
+   746→   746→
+   747→   747→// ----------------------------------------------------------------------------
+   748→   748→// Section: Stats
+   749→   749→// ----------------------------------------------------------------------------
+   750→   750→
+   751→   751→function StatsBand() {
+   752→   752→  const t = useT();
+   753→   753→  const stats = [
+   754→   754→    {
+   755→   755→      value: 18.9,
+   756→   756→      labelKey: "stats.processed",
+   757→   757→      format: (n: number) => `$${n.toFixed(1)}B`,
+   758→   758→    },
+   759→   759→    {
+   760→   760→      value: 120,
+   761→   761→      labelKey: "stats.currencies",
+   762→   762→      format: (n: number) => `${formatNumber(n)}+`,
+   763→   763→    },
+   764→   764→    {
+   765→   765→      value: 45,
+   766→   766→      labelKey: "stats.countries",
+   767→   767→      format: (n: number) => formatNumber(n),
+   768→   768→    },
+   769→   769→    {
+   770→   770→      value: 99.99,
+   771→   771→      labelKey: "stats.uptime",
+   772→   772→      format: (n: number) => formatPercent(n, 2),
+   773→   773→    },
+   774→   774→  ];
+   775→   775→  return (
+   776→   776→    <section className="py-16 sm:py-20">
+   777→   777→      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+   778→   778→        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border/50 bg-border/40 lg:grid-cols-4">
+   779→   779→          {stats.map((s, i) => (
+   780→   780→            <Reveal
+   781→   781→              key={s.labelKey}
+   782→   782→              delay={i * 0.08}
+   783→   783→              className="bg-background/60 backdrop-blur-xl"
+   784→   784→            >
+   785→   785→              <div className="flex h-full flex-col items-center justify-center px-4 py-10 text-center">
+   786→   786→                <AnimatedCounter
+   787→   787→                  value={s.value}
+   788→   788→                  format={s.format}
+   789→   789→                  className="bg-gradient-to-b from-foreground to-foreground/60 bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:text-5xl"
+   790→   790→                />
+   791→   791→                <p className="mt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground sm:text-sm">
+   792→   792→                  {t(s.labelKey)}
+   793→   793→                </p>
+   794→   794→              </div>
+   795→   795→            </Reveal>
+   796→   796→          ))}
+   797→   797→        </div>
+   798→   798→      </div>
+   799→   799→    </section>
+   800→   800→  );
+   801→   801→}
+   802→   802→
+   803→   803→// ----------------------------------------------------------------------------
+   804→   804→// Section: Payment methods
+   805→   805→// ----------------------------------------------------------------------------
+   806→   806→
+   807→   807→function PaymentMethods() {
+   808→   808→  const t = useT();
+   809→   809→  return (
+   810→   810→    <section className="py-16 sm:py-24">
+   811→   811→      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+   812→   812→        <Reveal className="mx-auto max-w-2xl text-center">
+   813→   813→          <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">
+   814→   814→            Coverage
+   815→   815→          </Badge>
+   816→   816→          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+   817→   817→            {t("pm.title")}
+   818→   818→          </h2>
+   819→   819→          <p className="mt-3 text-muted-foreground">
+   820→   820→            {t("pm.subtitle")}
+   821→   821→          </p>
+   822→   822→        </Reveal>
+   823→   823→
+   824→   824→        <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   825→   825→          {PAYMENT_METHODS.map((m, i) => {
+   826→   826→            const Logo = PAYMENT_LOGOS[m.id];
+   827→   827→            return (
+   828→   828→              <Reveal key={m.id} delay={i * 0.04}>
+   829→   829→                <motion.div whileHover={{ y: -4 }} className="h-full">
+   830→   830→                  <GlowCard className="group flex h-full items-center gap-4 p-5 transition-colors hover:border-primary/40">
+   831→   831→                    <div className="flex h-10 w-16 shrink-0 items-center justify-center">
+   832→   832→                      {Logo ? <Logo /> : <span className="text-sm font-medium text-foreground">{m.label}</span>}
+   833→   833→                    </div>
+   834→   834→                    <div className="min-w-0 flex-1">
+   835→   835→                      <p className="font-semibold text-foreground">{m.label}</p>
+   836→   836→                      <p className="mt-0.5 text-sm leading-snug text-muted-foreground">
+   837→   837→                        {t("pm." + m.id.replace("_", ""))}
+   838→   838→                      </p>
+   839→   839→                    </div>
+   840→   840→                  </GlowCard>
+   841→   841→                </motion.div>
+   842→   842→              </Reveal>
+   843→   843→            );
+   844→   844→          })}
+   845→   845→        </div>
+   846→   846→      </div>
+   847→   847→    </section>
+   848→   848→  );
+   849→   849→}
+   850→   850→
+   851→   851→// ----------------------------------------------------------------------------
+   852→   852→// Section: Developer
+   853→   853→// ----------------------------------------------------------------------------
+   854→   854→
+   855→   855→const DEV_FEATURES = [
+   856→   856→  {
+   857→   857→    icon: Code2,
+   858→   858→    titleKey: "dev.feature1",
+   859→   859→    descKey: "dev.feature1d",
+   860→   860→  },
+   861→   861→  {
+   862→   862→    icon: Webhook,
+   863→   863→    titleKey: "dev.feature2",
+   864→   864→    descKey: "dev.feature2d",
+   865→   865→  },
+   866→   866→  {
+   867→   867→    icon: Plug,
+   868→   868→    titleKey: "dev.feature3",
+   869→   869→    descKey: "dev.feature3d",
+   870→   870→  },
+   871→   871→  {
+   872→   872→    icon: RefreshCw,
+   873→   873→    titleKey: "dev.feature4",
+   874→   874→    descKey: "dev.feature4d",
+   875→   875→  },
+   876→   876→];
+   877→   877→
+   878→   878→function DeveloperSection() {
+   879→   879→  const copy = useCopy();
+   880→   880→  const t = useT();
+   881→   881→  return (
+   882→   882→    <section className="py-16 sm:py-24">
+   883→   883→      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-5 sm:px-8 lg:grid-cols-2 lg:gap-16">
+   884→   884→        <Reveal className="flex flex-col justify-center">
+   885→   885→          <Badge variant="outline" className="mb-4 w-fit border-primary/30 bg-primary/10 text-primary">
+   886→   886→            For developers
+   887→   887→          </Badge>
+   888→   888→          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+   889→   889→            {t("dev.title")}
+   890→   890→          </h2>
+   891→   891→          <p className="mt-4 text-muted-foreground">
+   892→   892→            {t("dev.subtitle")}
+   893→   893→          </p>
+   894→   894→
+   895→   895→          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+   896→   896→            {DEV_FEATURES.map((f) => (
+   897→   897→              <div
+   898→   898→                key={f.titleKey}
+   899→   899→                className="rounded-xl border border-border/50 bg-card/40 p-4 backdrop-blur-sm"
+   900→   900→              >
+   901→   901→                <div className="mb-2 grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
+   902→   902→                  <f.icon className="size-[18px]" />
+   903→   903→                </div>
+   904→   904→                <h3 className="text-sm font-semibold text-foreground">
+   905→   905→                  {t(f.titleKey)}
+   906→   906→                </h3>
+   907→   907→                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+   908→   908→                  {t(f.descKey)}
+   909→   909→                </p>
+   910→   910→              </div>
+   911→   911→            ))}
+   912→   912→          </div>
+   913→   913→
+   914→   914→          <div className="mt-8">
+   915→   915→            <Button
+   916→   916→              variant="outline"
+   917→   917→              onClick={() => copy(sdkSnippets.node, "Install command copied")}
+   918→   918→              className="border-border/70 bg-background/40"
+   919→   919→            >
+   920→   920→              <Code2 className="size-4" />
+   921→   921→              npm i @xpay-expert/node
+   922→   922→              <Copy className="size-3.5 opacity-60" />
+   923→   923→            </Button>
+   924→   924→          </div>
+   925→   925→        </Reveal>
+   926→   926→
+   927→   927→        <Reveal delay={0.1}>
+   928→   928→          <Tabs defaultValue="node" className="gap-0">
+   929→   929→            <div className="overflow-hidden rounded-2xl border border-border/60 bg-[oklch(0.12_0.012_255)] backdrop-blur-xl">
+   930→   930→              {/* terminal header */}
+   931→   931→              <div className="flex items-center gap-2 border-b border-border/50 px-4 py-3">
+   932→   932→                <div className="flex gap-1.5">
+   933→   933→                  <span className="size-3 rounded-full bg-rose-500/80" />
+   934→   934→                  <span className="size-3 rounded-full bg-amber-400/80" />
+   935→   935→                  <span className="size-3 rounded-full bg-emerald-500/80" />
+   936→   936→                </div>
+   937→   937→                <span className="ml-2 text-xs text-muted-foreground">
+   938→   938→                  payments.create()
+   939→   939→                </span>
+   940→   940→              </div>
+   941→   941→
+   942→   942→              <TabsList className="m-0 grid w-full grid-cols-5 rounded-none border-b border-border/50 bg-transparent p-0">
+   943→   943→                {LANGS.map((l) => (
+   944→   944→                  <TabsTrigger
+   945→   945→                    key={l.id}
+   946→   946→                    value={l.id}
+   947→   947→                    className="rounded-none border-b-2 border-transparent py-2.5 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+   948→   948→                  >
+   949→   949→                    {l.label}
+   950→   950→                  </TabsTrigger>
+   951→   951→                ))}
+   952→   952→              </TabsList>
+   953→   953→
+   954→   954→              {LANGS.map((l) => (
+   955→   955→                <TabsContent key={l.id} value={l.id} className="m-0">
+   956→   956→                  <div className="relative">
+   957→   957→                    <pre className="scrollbar-thin max-h-[280px] overflow-auto px-5 py-4 font-mono text-[12.5px] leading-relaxed text-foreground/90">
+   958→   958→                      <code className="whitespace-pre">{sdkSnippets[l.id]}</code>
+   959→   959→                    </pre>
+   960→   960→                    <button
+   961→   961→                      onClick={() => copy(sdkSnippets[l.id], "Copied to clipboard")}
+   962→   962→                      className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/70 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur transition-colors hover:text-foreground"
+   963→   963→                    >
+   964→   964→                      <Copy className="size-3.5" />
+   965→   965→                      Copy
+   966→   966→                    </button>
+   967→   967→                  </div>
+   968→   968→                </TabsContent>
+   969→   969→              ))}
+   970→   970→
+   971→   971→              {/* response */}
+   972→   972→              <div className="border-t border-border/50 bg-background/30">
+   973→   973→                <div className="flex items-center justify-between px-5 py-2.5">
+   974→   974→                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+   975→   975→                    <ArrowUpRight className="size-3.5 text-emerald-400" />
+   976→   976→                    200 OK · 142ms
+   977→   977→                  </span>
+   978→   978→                  <span className="text-[11px] text-muted-foreground">{t("dev.response")}</span>
+   979→   979→                </div>
+   980→   980→                <pre className="scrollbar-thin overflow-auto px-5 pb-5 font-mono text-[12px] leading-relaxed text-emerald-300/90">
+   981→   981→                  <code className="whitespace-pre">{RESPONSE_JSON}</code>
+   982→   982→                </pre>
+   983→   983→              </div>
+   984→   984→            </div>
+   985→   985→          </Tabs>
+   986→   986→        </Reveal>
+   987→   987→      </div>
+   988→   988→    </section>
+   989→   989→  );
+   990→   990→}
+   991→   991→
+   992→   992→// ----------------------------------------------------------------------------
+   993→   993→// Section: Features grid
+   994→   994→// ----------------------------------------------------------------------------
+   995→   995→
+   996→   996→const FEATURES = [
+   997→   997→  {
+   998→   998→    icon: Wallet,
+   999→   999→    titleKey: "features.wallets",
+  1000→  1000→    descKey: "features.walletsD",
+  1001→  1001→  },
+  1002→  1002→  {
+  1003→  1003→    icon: Landmark,
+  1004→  1004→    titleKey: "features.treasury",
+  1005→  1005→    descKey: "features.treasuryD",
+  1006→  1006→  },
+  1007→  1007→  {
+  1008→  1008→    icon: ShieldAlert,
+  1009→  1009→    titleKey: "features.risk",
+  1010→  1010→    descKey: "features.riskD",
+  1011→  1011→  },
+  1012→  1012→  {
+  1013→  1013→    icon: ShoppingBag,
+  1014→  1014→    titleKey: "features.commerce",
+  1015→  1015→    descKey: "features.commerceD",
+  1016→  1016→  },
+  1017→  1017→  {
+  1018→  1018→    icon: LineChart,
+  1019→  1019→    titleKey: "features.analytics",
+  1020→  1020→    descKey: "features.analyticsD",
+  1021→  1021→  },
+  1022→  1022→  {
+  1023→  1023→    icon: Code2,
+  1024→  1024→    titleKey: "features.developers",
+  1025→  1025→    descKey: "features.developersD",
+  1026→  1026→  },
+  1027→  1027→];
+  1028→  1028→
+  1029→  1029→function FeaturesGrid() {
+  1030→  1030→  const t = useT();
+  1031→  1031→  return (
+  1032→  1032→    <section className="py-16 sm:py-24">
+  1033→  1033→      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+  1034→  1034→        <Reveal className="mx-auto max-w-2xl text-center">
+  1035→  1035→          <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">
+  1036→  1036→            Platform
+  1037→  1037→          </Badge>
+  1038→  1038→          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+  1039→  1039→            {t("features.title")}
+  1040→  1040→          </h2>
+  1041→  1041→          <p className="mt-3 text-muted-foreground">
+  1042→  1042→            {t("features.subtitle")}
+  1043→  1043→          </p>
+  1044→  1044→        </Reveal>
+  1045→  1045→
+  1046→  1046→        <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+  1047→  1047→          {FEATURES.map((f, i) => (
+  1048→  1048→            <Reveal key={f.titleKey} delay={(i % 3) * 0.06}>
+  1049→  1049→              <GradientBorder className="h-full">
+  1050→  1050→                <motion.div
+  1051→  1051→                  whileHover={{ y: -4 }}
+  1052→  1052→                  className="group flex h-full flex-col rounded-xl bg-card/50 p-6 backdrop-blur-xl"
+  1053→  1053→                >
+  1054→  1054→                  <div className="mb-4 grid size-11 place-items-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary ring-1 ring-inset ring-primary/20">
+  1055→  1055→                    <f.icon className="size-5" />
+  1056→  1056→                  </div>
+  1057→  1057→                  <h3 className="text-base font-semibold text-foreground">
+  1058→  1058→                    {t(f.titleKey)}
+  1059→  1059→                  </h3>
+  1060→  1060→                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+  1061→  1061→                    {t(f.descKey)}
+  1062→  1062→                  </p>
+  1063→  1063→                  <div className="mt-4 flex items-center text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+  1064→  1064→                    Learn more <ChevronRight className="size-3.5" />
+  1065→  1065→                  </div>
+  1066→  1066→                </motion.div>
+  1067→  1067→              </GradientBorder>
+  1068→  1068→            </Reveal>
+  1069→  1069→          ))}
+  1070→  1070→        </div>
+  1071→  1071→      </div>
+  1072→  1072→    </section>
+  1073→  1073→  );
+  1074→  1074→}
+  1075→  1075→
+  1076→  1076→// ----------------------------------------------------------------------------
+  1077→  1077→// Section: Security
+  1078→  1078→// ----------------------------------------------------------------------------
+  1079→  1079→
+  1080→  1080→const SECURITY_PILLARS = [
+  1081→  1081→  {
+  1082→  1082→    icon: CreditCard,
+  1083→  1083→    titleKey: "security.pci",
+  1084→  1084→    descKey: "security.pciD",
+  1085→  1085→  },
+  1086→  1086→  {
+  1087→  1087→    icon: ShieldCheck,
+  1088→  1088→    titleKey: "security.soc",
+  1089→  1089→    descKey: "security.socD",
+  1090→  1090→  },
+  1091→  1091→  {
+  1092→  1092→    icon: Gauge,
+  1093→  1093→    titleKey: "security.uptime",
+  1094→  1094→    descKey: "security.uptimeD",
+  1095→  1095→  },
+  1096→  1096→];
+  1097→  1097→
+  1098→  1098→function SecuritySection() {
+  1099→  1099→  const t = useT();
+  1100→  1100→  return (
+  1101→  1101→    <section className="relative overflow-hidden py-16 sm:py-24">
+  1102→  1102→      <div className="pointer-events-none absolute left-1/2 top-1/2 size-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />
+  1103→  1103→      <div className="relative mx-auto max-w-7xl px-5 sm:px-8">
+  1104→  1104→        <Reveal className="mx-auto max-w-2xl text-center">
+  1105→  1105→          <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">
+  1106→  1106→            <ShieldCheck className="size-3.5" />
+  1107→  1107→            Trust & compliance
+  1108→  1108→          </Badge>
+  1109→  1109→          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+  1110→  1110→            {t("security.title")}
+  1111→  1111→          </h2>
+  1112→  1112→          <p className="mt-3 text-muted-foreground">
+  1113→  1113→            {t("security.subtitle")}
+  1114→  1114→          </p>
+  1115→  1115→        </Reveal>
+  1116→  1116→
+  1117→  1117→        <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+  1118→  1118→          {SECURITY_PILLARS.map((p, i) => (
+  1119→  1119→            <Reveal key={p.titleKey} delay={i * 0.08}>
+  1120→  1120→              <GlowCard glow className="relative h-full overflow-hidden p-6">
+  1121→  1121→                <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-primary/15 blur-2xl" />
+  1122→  1122→                <div className="relative">
+  1123→  1123→                  <div className="mb-4 grid size-12 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/30">
+  1124→  1124→                    <p.icon className="size-[22px]" />
+  1125→  1125→                  </div>
+  1126→  1126→                  <h3 className="text-lg font-semibold text-foreground">
+  1127→  1127→                    {t(p.titleKey)}
+  1128→  1128→                  </h3>
+  1129→  1129→                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+  1130→  1130→                    {t(p.descKey)}
+  1131→  1131→                  </p>
+  1132→  1132→                </div>
+  1133→  1133→              </GlowCard>
+  1134→  1134→            </Reveal>
+  1135→  1135→          ))}
+  1136→  1136→        </div>
+  1137→  1137→      </div>
+  1138→  1138→    </section>
+  1139→  1139→  );
+  1140→  1140→}
+  1141→  1141→
+  1142→  1142→// ----------------------------------------------------------------------------
+  1143→  1143→// Section: Testimonials
+  1144→  1144→// ----------------------------------------------------------------------------
+  1145→  1145→
+  1146→  1146→const TESTIMONIALS = [
+  1147→  1147→  {
+  1148→  1148→    quoteKey: "t1.quote",
+  1149→  1149→    authorKey: "t1.author",
+  1150→  1150→    roleKey: "t1.role",
+  1151→  1151→    initials: "LF",
+  1152→  1152→  },
+  1153→  1153→  {
+  1154→  1154→    quoteKey: "t2.quote",
+  1155→  1155→    authorKey: "t2.author",
+  1156→  1156→    roleKey: "t2.role",
+  1157→  1157→    initials: "CD",
+  1158→  1158→  },
+  1159→  1159→  {
+  1160→  1160→    quoteKey: "t3.quote",
+  1161→  1161→    authorKey: "t3.author",
+  1162→  1162→    roleKey: "t3.role",
+  1163→  1163→    initials: "MB",
+  1164→  1164→  },
+  1165→  1165→];
+  1166→  1166→
+  1167→  1167→function Testimonials() {
+  1168→  1168→  const t = useT();
+  1169→  1169→  return (
+  1170→  1170→    <section className="py-16 sm:py-24">
+  1171→  1171→      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+  1172→  1172→        <Reveal className="mx-auto max-w-2xl text-center">
+  1173→  1173→          <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">
+  1174→  1174→            Customers
+  1175→  1175→          </Badge>
+  1176→  1176→          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+  1177→  1177→            {t("testimonials.title")}
+  1178→  1178→          </h2>
+  1179→  1179→        </Reveal>
+  1180→  1180→
+  1181→  1181→        <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+  1182→  1182→          {TESTIMONIALS.map((tm, i) => (
+  1183→  1183→            <Reveal key={tm.authorKey} delay={i * 0.08}>
+  1184→  1184→              <GlowCard className="flex h-full flex-col p-6">
+  1185→  1185→                <Quote className="size-7 text-primary/40" />
+  1186→  1186→                <p className="mt-4 flex-1 text-[15px] leading-relaxed text-foreground/90">
+  1187→  1187→                  "{t(tm.quoteKey)}"
+  1188→  1188→                </p>
+  1189→  1189→                <div className="mt-6 flex items-center gap-3">
+  1190→  1190→                  <Avatar className="size-9 ring-1 ring-inset ring-primary/30">
+  1191→  1191→                    <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">
+  1192→  1192→                      {tm.initials}
+  1193→  1193→                    </AvatarFallback>
+  1194→  1194→                  </Avatar>
+  1195→  1195→                  <div>
+  1196→  1196→                    <p className="text-sm font-semibold text-foreground">
+  1197→  1197→                      {t(tm.authorKey)}
+  1198→  1198→                    </p>
+  1199→  1199→                    <p className="text-xs text-muted-foreground">{t(tm.roleKey)}</p>
+  1200→  1200→                  </div>
+  1201→  1201→                </div>
+  1202→  1202→              </GlowCard>
+  1203→  1203→            </Reveal>
+  1204→  1204→          ))}
+  1205→  1205→        </div>
+  1206→  1206→      </div>
+  1207→  1207→    </section>
+  1208→  1208→  );
+  1209→  1209→}
+  1210→  1210→
+  1211→  1211→// ----------------------------------------------------------------------------
+  1212→  1212→// Section: Final CTA
+  1213→  1213→// ----------------------------------------------------------------------------
+  1214→  1214→
+  1215→  1215→function FinalCTA() {
+  1216→  1216→  const router = useRouter();
+  1217→  1217→  const t = useT();
+  1218→  1218→  return (
+  1219→  1219→    <section className="px-5 py-16 sm:px-8 sm:py-24">
+  1220→  1220→      <Reveal className="mx-auto max-w-5xl">
+  1221→  1221→        <GradientBorder className="relative overflow-hidden rounded-3xl">
+  1222→  1222→          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/20 via-card/60 to-background/40 px-6 py-14 text-center backdrop-blur-xl sm:px-12 sm:py-20">
+  1223→  1223→            <div className="pointer-events-none absolute -top-24 left-1/2 size-[460px] -translate-x-1/2 rounded-full bg-primary/25 blur-[120px]" />
+  1224→  1224→            <div className="pointer-events-none absolute inset-0 bg-grid opacity-30" />
+  1225→  1225→            <div className="relative">
+  1226→  1226→              <Badge
+  1227→  1227→                variant="outline"
+  1228→  1228→                className="mb-5 border-primary/30 bg-background/40 text-primary backdrop-blur"
+  1229→  1229→              >
+  1230→  1230→                <Rocket className="size-3.5" />
+  1231→  1231→                Get started in minutes
+  1232→  1232→              </Badge>
+  1233→  1233→              <h2 className="mx-auto max-w-2xl text-balance text-3xl font-semibold tracking-tight sm:text-5xl">
+  1234→  1234→                {t("cta.title")}
+  1235→  1235→              </h2>
+  1236→  1236→              <p className="mx-auto mt-4 max-w-xl text-pretty text-muted-foreground">
+  1237→  1237→                {t("cta.subtitle")}
+  1238→  1238→              </p>
+  1239→  1239→              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+  1240→  1240→                <Button
+  1241→  1241→                  size="lg"
+  1242→  1242→                  onClick={() => router.push("/register")}
+  1243→  1243→                  className="glow-blue h-12 px-8 text-sm"
+  1244→  1244→                >
+  1245→  1245→                  {t("cta.button")}
+  1246→  1246→                  <ArrowRight className="size-4" />
+  1247→  1247→                </Button>
+  1248→  1248→                <Button
+  1249→  1249→                  size="lg"
+  1250→  1250→                  variant="outline"
+  1251→  1251→                  onClick={() => router.push("/register")}
+  1252→  1252→                  className="h-12 border-border/70 bg-background/40 px-8 text-sm backdrop-blur"
+  1253→  1253→                >
+  1254→  1254→                  {t("cta.secondary")}
+  1255→  1255→                </Button>
+  1256→  1256→              </div>
+  1257→  1257→            </div>
+  1258→  1258→          </div>
+  1259→  1259→        </GradientBorder>
+  1260→  1260→      </Reveal>
+  1261→  1261→    </section>
+  1262→  1262→  );
+  1263→  1263→}
+  1264→  1264→
+  1265→  1265→// ----------------------------------------------------------------------------
+  1266→  1266→// Footer
+  1267→  1267→// ----------------------------------------------------------------------------
+  1268→  1268→
+  1269→  1269→type FooterLink = string | { key: string };
+  1270→  1270→const FOOTER_COLS: { titleKey: string; links: FooterLink[] }[] = [
+  1271→  1271→  {
+  1272→  1272→    titleKey: "footer.product",
+  1273→  1273→    links: ["Payments", "Wallets & FX", "Treasury", "Risk Engine", "Commerce", "Analytics"],
+  1274→  1274→  },
+  1275→  1275→  {
+  1276→  1276→    titleKey: "footer.developers",
+  1277→  1277→    links: ["Documentation", "API Reference", "SDKs", "Webhooks", "API Explorer", "Status"],
+  1278→  1278→  },
+  1279→  1279→  {
+  1280→  1280→    titleKey: "footer.company",
+  1281→  1281→    links: ["About", "Customers", "Careers", "Press", "Partners", "Contact"],
+  1282→  1282→  },
+  1283→  1283→  {
+  1284→  1284→    titleKey: "footer.resources",
+  1285→  1285→    links: ["Blog", "Guides", "Help Center", "Community", "Changelog", "Roadmap"],
+  1286→  1286→  },
+  1287→  1287→  {
+  1288→  1288→    titleKey: "footer.legal",
+  1289→  1289→    links: [
+  1290→  1290→      { key: "footer.terms" },
+  1291→  1291→      { key: "footer.privacy" },
+  1292→  1292→      { key: "footer.compliance" },
+  1293→  1293→      { key: "footer.security" },
+  1294→  1294→      "DPA",
+  1295→  1295→      "Licenses",
+  1296→  1296→    ],
+  1297→  1297→  },
+  1298→  1298→];
+  1299→  1299→
+  1300→  1300→function Footer() {
+  1301→  1301→  const t = useT();
+  1302→  1302→  return (
+  1303→  1303→    <footer className="mt-auto border-t border-border/60 bg-background/60">
+  1304→  1304→      <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
+  1305→  1305→        <div className="grid grid-cols-2 gap-10 lg:grid-cols-6">
+  1306→  1306→          <div className="col-span-2">
+  1307→  1307→            <BrandLogo />
+  1308→  1308→            <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
+  1309→  1309→              {t("footer.tagline")}
+  1310→  1310→            </p>
+  1311→  1311→            <div className="mt-5 flex items-center gap-2">
+  1312→  1312→              {[Twitter, Github, Linkedin, Globe2].map((Icon, i) => (
+  1313→  1313→                <a
+  1314→  1314→                  key={i}
+  1315→  1315→                  href="#"
+  1316→  1316→                  onClick={(e) => e.preventDefault()}
+  1317→  1317→                  className="grid size-9 place-items-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+  1318→  1318→                >
+  1319→  1319→                  <Icon className="size-4" />
+  1320→  1320→                </a>
+  1321→  1321→              ))}
+  1322→  1322→            </div>
+  1323→  1323→          </div>
+  1324→  1324→
+  1325→  1325→          {FOOTER_COLS.map((col) => (
+  1326→  1326→            <div key={col.titleKey}>
+  1327→  1327→              <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground">
+  1328→  1328→                {t(col.titleKey)}
+  1329→  1329→              </h4>
+  1330→  1330→              <ul className="mt-4 space-y-2.5">
+  1331→  1331→                {col.links.map((l, i) => {
+  1332→  1332→                  const label = typeof l === "string" ? l : t(l.key);
+  1333→  1333→                  return (
+  1334→  1334→                    <li key={i}>
+  1335→  1335→                      <a
+  1336→  1336→                        href="#"
+  1337→  1337→                        onClick={(e) => e.preventDefault()}
+  1338→  1338→                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+  1339→  1339→                      >
+  1340→  1340→                        {label}
+  1341→  1341→                      </a>
+  1342→  1342→                    </li>
+  1343→  1343→                  );
+  1344→  1344→                })}
+  1345→  1345→              </ul>
+  1346→  1346→            </div>
+  1347→  1347→          ))}
+  1348→  1348→        </div>
+  1349→  1349→
+  1350→  1350→        <Separator className="my-8" />
+  1351→  1351→
+  1352→  1352→        <div className="flex flex-col items-center justify-between gap-4 text-xs text-muted-foreground sm:flex-row">
+  1353→  1353→          <p>© 2026 {APP_NAME}, Inc. {t("footer.rights")}</p>
+  1354→  1354→          <div className="flex items-center gap-5">
+  1355→  1355→            <span className="inline-flex items-center gap-1.5">
+  1356→  1356→              <span className="size-1.5 rounded-full bg-emerald-400" />
+  1357→  1357→              All systems operational
+  1358→  1358→            </span>
+  1359→  1359→            <span className="opacity-30">·</span>
+  1360→  1360→            <span>Made for the global economy</span>
+  1361→  1361→            <span className="opacity-30">·</span>
+  1362→  1362→            <span className="inline-flex items-center gap-1.5">
+  1363→  1363→              {t("footer.language")}
+  1364→  1364→              <LanguageSwitcher variant="full" />
+  1365→  1365→            </span>
+  1366→  1366→          </div>
+  1367→  1367→        </div>
+  1368→  1368→      </div>
+  1369→  1369→    </footer>
+  1370→  1370→  );
+  1371→  1371→}
+  1372→  1372→
+  1373→  1373→// ----------------------------------------------------------------------------
+  1374→  1374→// Page
+  1375→  1375→// ----------------------------------------------------------------------------
+  1376→  1376→
+  1377→  1377→export default function LandingPage() {
+  1378→  1378→  return (
+  1379→  1379→    <div className="min-h-screen flex flex-col bg-background">
+  1380→  1380→      <NavBar />
+  1381→  1381→      <main className="flex-1">
+  1382→  1382→        <Hero />
+  1383→  1383→        <TrustBar />
+  1384→  1384→        <StatsBand />
+  1385→  1385→        <PaymentMethods />
+  1386→  1386→        <DeveloperSection />
+  1387→  1387→        <FeaturesGrid />
+  1388→  1388→        <SecuritySection />
+  1389→  1389→        <Testimonials />
+  1390→  1390→        <FinalCTA />
+  1391→  1391→      </main>
+  1392→  1392→      <Footer />
+  1393→  1393→    </div>
+  1394→  1394→  );
+  1395→  1395→}
+  1396→  1396→
