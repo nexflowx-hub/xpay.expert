@@ -27,6 +27,7 @@
 - [API Integration](#api-integration)
 - [Security Model](#security-model)
 - [Key Features](#key-features)
+- [Module Status](#module-status)
 - [Development](#development)
 - [Project Structure](#project-structure)
 - [Internationalisation (i18n)](#internationalisation-i18n)
@@ -38,16 +39,17 @@
 
 ## Overview
 
-**XPAY.Expert** is a production-grade SaaS merchant dashboard for a multi-currency payment processing platform. It provides a comprehensive web interface for merchants to manage payments, wallets, settlements, payouts, risk monitoring, developer tools (API keys, webhooks), and banking services — all powered by a remote REST API at `https://api.xpay.expert/api/v1`.
+**XPAY.Expert** is a production-grade SaaS merchant dashboard for a multi-currency payment processing platform. It provides a comprehensive web interface for merchants to manage payments, wallets, settlements, payouts, risk monitoring, developer tools (API keys, webhooks), and advisory services — all powered by a remote REST API at `https://api.xpay.expert/api/v1`.
 
-The dashboard is a **frontend-only** application with no direct database connections. All data flows through authenticated API calls to the XPAY.Expert backend.
+The dashboard is a **frontend-only** application with **no direct database connections** and no server-side data layer. All data flows through authenticated API calls to the XPAY.Expert backend.
 
 ### Design Principles
 
 - **Zero persisted secrets** — JWT, full API keys, OTP codes, and action tokens are held in memory only; never written to `localStorage` or cookies.
 - **Security-first routing** — route guards for merchant and admin areas; `401` triggers session invalidation, `403` preserves it.
-- **Server-driven capabilities** — feature availability (banking, advisory, etc.) is determined by backend `capabilities` flags, with local static fallbacks.
+- **Server-driven capabilities** — feature availability (banking, advisory, admin console) is determined by backend `capabilities` flags via `GET /platform/capabilities`, with local static fallbacks when the endpoint is unavailable.
 - **Mobile-first responsive** — all views designed mobile-first with progressive enhancement for desktop.
+- **Error resilience** — query errors stay inside TanStack Query (no error boundary crashes); components render their own `ErrorState` with retry buttons.
 
 ---
 
@@ -74,6 +76,7 @@ The dashboard is a **frontend-only** application with no direct database connect
 | **Drag & Drop** | dnd-kit | 6.x / 10.x |
 | **Rich Text / Markdown** | @mdxeditor/editor, react-markdown | 3.x / 10.x |
 | **Syntax Highlighting** | react-syntax-highlighter | 15.x |
+| **Icons (Payment)** | Custom SVG (Visa, MC, Pix, MBWay, Bizum, Apple Pay) | — |
 
 ---
 
@@ -86,28 +89,39 @@ The application uses Next.js 16 App Router with route groups for layout segregat
 ```
 src/app/
 ├── page.tsx                    # Landing page (public)
-├── layout.tsx                   # Root layout
+├── layout.tsx                   # Root layout (providers, toaster)
+├── not-found.tsx                # Custom 404 page
+├── error.tsx                    # Error boundary
 ├── manifest.ts                  # PWA manifest
+├── sitemap.ts                   # SEO sitemap
+├── robots.ts                    # SEO robots
 ├── (auth)/                      # Unauthenticated group
+│   ├── layout.tsx               # Auth layout
 │   ├── login/page.tsx           # Login
 │   └── register/page.tsx        # Registration
 ├── (dashboard)/                 # Authenticated dashboard (sidebar, header, guards)
+│   ├── layout.tsx               # Dashboard shell + MerchantGuard + bootstrap
 │   ├── commerce/                # Overview, payments, transactions, settlements,
-│   │                             #   payouts, wallets, customers, stores, products,
-│   │                             #   invoices, subscriptions, payment-links
+│   │                             #   payouts (list + new + detail), wallets, customers,
+│   │                             #   stores, products, invoices, subscriptions, payment-links
 │   ├── banking/                # Accounts, transfers, beneficiaries, fx,
-│   │                             #   cards, crypto, statements (gated by capabilities)
+│   │                             #   cards, crypto, statements (DISABLED — placeholder pages)
 │   ├── developers/             # Overview, api-keys (v2), webhooks, docs
 │   ├── advisory/               # Services, cases, documents, messages
-│   ├── admin/                   # Role-gated admin console
+│   ├── admin/                   # Role-gated admin console (AdminGuard)
+│   │   ├── layout.tsx           # Admin guard wrapper
 │   │   ├── kyc/                # KYC review queue
 │   │   ├── risk/               # Risk management
 │   │   ├── revenue/            # Revenue analytics
 │   │   ├── commerce/            # Merchants, payouts, gateways, settlements
+│   │   ├── advisory/            # Advisory management
 │   │   └── system/             # Health, workers, logs, queues, feature-flags
-│   ├── settings/ / support/ / risk/ / insights/
+│   ├── settings/page.tsx       # Merchant settings
+│   ├── support/page.tsx        # Support center
+│   ├── risk/page.tsx           # Risk overview
+│   └── insights/page.tsx       # Insights & analytics
 ├── (protected)/                # commerce, developers, marketplace, money
-└── api/route.ts                # Next.js API routes
+└── api/route.ts                # Next.js API route stub
 ```
 
 ### Component Layers
@@ -124,9 +138,9 @@ src/components/
 ├── dashboard/           # Shell (sidebar/header), merchant-guard, admin-guard
 ├── admin/               # Admin panels: dashboard, analytics, merchants, kyc,
 │                         #   risk, compliance, revenue, gateways, health, logs,
-│                         #   queues, workers, treasury, flags, support
+│                         #   queues, workers, treasury, flags, support (15 components)
 ├── shared/              # payment-logos, badges, charts, language-switcher,
-│                         #   x-symbol, xpi-chat
+│                         #   x-symbol, xpi-chat, index (shared exports)
 └── pwa-register.tsx     # PWA install prompt
 ```
 
@@ -141,7 +155,7 @@ Centralised in `src/lib/api/` with distinct client configurations:
 | **client.ts** | Legacy client | Backward compatibility |
 | **endpoints.ts** | Typed endpoint functions | All API calls organised by domain |
 | **xpApi.ts** | Extended API utilities | Convenience wrappers |
-| **capabilities-api.ts** | Capabilities detection | Dynamic feature flag resolution |
+| **capabilities-api.ts** | Capabilities detection | Dynamic feature flag resolution with fallback |
 | **mock.ts** | Mock data generators | Development & demo data |
 
 **Private client interceptor behaviour:**
@@ -154,7 +168,10 @@ privateApi.interceptors.request.use((config) => {
 });
 // 401 → clear session, redirect to /login
 // 403 → preserve session (access denied, not a session issue)
+// Network errors → preserve session (retry available)
 ```
+
+**Security-aware requests** use `privateRequestWithSecurity<T>(config, actionToken)` which adds the `X-Security-Action` header for sensitive operations (key creation, transfer confirmation, etc.).
 
 ### State Management
 
@@ -166,29 +183,35 @@ All stores use **Zustand 5** with optional `persist` middleware:
 | `usePlatform` | `stores/platform.ts` | Platform bootstrap data, capabilities |
 | `useWorkspace` | `stores/workspace.ts` | Workspace/merchant context switching |
 | `useUI` | `stores/ui.ts` | UI state (sidebar, modals) |
-| `useAdminStore` | `stores/admin.ts` | Admin capability flags |
+| `useAdminStore` | `stores/admin.ts` | Admin capability detection & flags |
 
-The auth store hydrates from storage on app load, validates via `GET /auth/me`, and handles reconnection.
+The auth store hydrates from storage on app load, validates via `GET /auth/me`, and handles reconnection. Legacy storage keys are automatically migrated on bootstrap via `xp-storage.ts`.
 
 ### Configuration
 
 ```
 src/config/
-├── index.ts           # Navigation structure, product area definitions, Lucide icons
+├── index.ts           # Navigation structure, product area definitions, Lucide icons,
+│                       #   currency map, store constants
 ├── feature-flags.ts   # Static fallback flags (superseded by server capabilities)
 └── contacts.ts        # Contact information and support channels
 ```
 
 ### Hooks
 
-- `use-queries.ts` — TanStack Query hooks for all data-fetching operations
-- `queries.ts` — Query key definitions and invalidation helpers
-- `use-mobile.ts` — Mobile breakpoint detection (responsive sidebar)
-- `use-toast.ts` — Toast notification hook
+| Hook | File | Purpose |
+|---|---|---|
+| `use-queries.ts` | TanStack Query hooks | All data-fetching & mutation operations |
+| `queries.ts` | Query key definitions | Query key factory + invalidation helpers |
+| `use-mobile.ts` | Breakpoint detection | Responsive sidebar toggle |
+| `use-toast.ts` | Toast hook | Legacy toast (Sonner preferred) |
 
 ### Providers
 
-Root providers composed in `src/providers/app-providers.tsx`: **QueryClientProvider** (TanStack Query), **ThemeProvider** (next-themes), and **i18n auto-detect**.
+Root providers composed in `src/providers/app-providers.tsx`:
+
+- **QueryClientProvider** (TanStack Query) — `staleTime: 30s`, `retry: 1`, `throwOnError: false`
+- **ThemeProvider** (next-themes) — dark mode default, class-based attribute
 
 ---
 
@@ -202,18 +225,24 @@ Base URL: https://api.xpay.expert/api/v1
 
 ### API Clients
 
-**Public Client** — No auth header. Login, register, public endpoints.
+**Public Client** — No auth header. Used for login, register, public endpoints.
 
-**Private Client** — Injects `Authorization: Bearer <token>` from an in-memory variable. `401` clears session and redirects. `403` preserves session. Network errors preserve session.
+**Private Client** — Injects `Authorization: Bearer <token>` from an in-memory variable (`_accessToken`).
 
-**Security-Aware Client** — Extends private client with `X-Security-Action` header for sensitive operations.
+**Security-Aware Client** — Extends private client with `X-Security-Action` header for sensitive operations. Token held in memory only — never persisted.
 
 ### Response Envelope
 
 All authenticated endpoints return a standardised envelope:
 
 ```json
-{ "success": true, "data": { ... }, "error": { "code": "...", "message": "..." } }
+{ "success": true, "data": { ... }, "meta": { ... } }
+```
+
+Error envelope:
+
+```json
+{ "success": false, "error": { "code": "ERROR_CODE", "message": "..." } }
 ```
 
 `privateRequestData<T>()` unwraps the envelope automatically. If `success` is `false`, it throws a normalised `ApiError`.
@@ -228,8 +257,9 @@ All authenticated endpoints return a standardised envelope:
 | `POST` | `auth/register` | Registration → JWT + merchant profile |
 | `GET` | `auth/me` | Validate & refresh session |
 | `POST` | `auth/logout` | Invalidate server-side session |
-| `GET` | `platform/bootstrap` | Capabilities, feature flags, workspace config |
+| `GET` | `platform/bootstrap` | Platform bootstrap data |
 | `GET/PATCH` | `merchant/profile` | Merchant profile read/update |
+| `GET` | `platform/capabilities` | Dynamic feature flags (with fallback) |
 
 #### Commerce & Payments
 
@@ -238,7 +268,8 @@ All authenticated endpoints return a standardised envelope:
 | `GET/POST` | `merchant/stores`, `merchant/stores/:id` | Store CRUD |
 | `GET` | `transactions`, `transactions/:id`, `transactions/stats` | Transactions + statistics |
 | `GET` | `analytics/overview` | Dashboard KPIs & charts |
-| `GET` | `wallets`, `wallets/movements` | Wallets + movement history |
+| `GET` | `wallets` | Wallet balances |
+| `GET` | `wallets/movements` | Wallet movement history |
 | `GET` | `risk/profile`, `risk/kyc/status` | Risk profile + KYC status |
 | `GET` | `treasury/overview` | Treasury overview |
 | `GET` | `customers` | Customer directory |
@@ -251,20 +282,30 @@ All authenticated endpoints return a standardised envelope:
 | `GET` | `merchant/payouts`, `merchant/payouts/:id` | List + detail |
 | `POST` | `merchant/payouts/:id/cancel` | Cancel payout |
 
-#### Developer & Webhooks
+#### Developer & API Keys
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `developer/api-keys` | List keys (never includes `fullKey`) |
-| `POST` | `developer/api-keys` | Create key → `fullKey` returned **once** |
-| `POST` | `developer/api-keys/:id/rotate` | Rotate key → new `fullKey` returned **once** |
-| `POST` | `developer/api-keys/:id/revoke` | Revoke key permanently |
+| `GET` | `api-keys` | List legacy API keys |
+| `POST` | `api-keys` | Create legacy API key |
+| `DELETE` | `api-keys/:id` | Delete legacy API key |
+| `GET` | `developer/api-keys` | List v2 keys (never includes `fullKey`) |
+| `POST` | `developer/api-keys` | Create v2 key → `fullKey` returned **once** |
+| `POST` | `developer/api-keys/:id/rotate` | Rotate v2 key → new `fullKey` returned **once** |
+| `POST` | `developer/api-keys/:id/revoke` | Revoke v2 key permanently |
+
+#### Webhooks
+
+| Method | Endpoint | Description |
+|---|---|---|
 | `GET/POST/PATCH/DELETE` | `webhooks` | Legacy webhook CRUD |
-| `GET/POST/PATCH/DELETE` | `merchant/webhooks` | v2 webhooks + delivery health |
+| `GET/POST/PATCH/DELETE` | `merchant/webhooks` | Merchant v2 webhooks + delivery health |
 | `POST` | `merchant/webhooks/:id/rotate-secret` | Rotate secret (security action) |
 | `GET` | `provider/webhooks` | Provider webhooks (read-only) |
 
-#### Banking (Private Beta)
+> **Note:** v2 webhook endpoints (`merchant/webhooks`, `provider/webhooks`) are defined in the frontend but may return 404 if not yet deployed on the backend. Legacy `webhooks` endpoints are always available.
+
+#### Banking (Disabled)
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -275,6 +316,8 @@ All authenticated endpoints return a standardised envelope:
 | `POST` | `banking/transfers/:id/confirm` | Confirm (requires security action) |
 | `POST` | `banking/fx-quotes` | FX rate quotes |
 | `GET` | `banking/statements` | Account statements |
+
+> **Banking is currently disabled** (`capabilities.banking = false`). All banking sub-pages render placeholder "Coming Soon" states. Endpoint definitions exist in `endpoints.ts` for when the module is activated.
 
 #### Security & Admin
 
@@ -288,6 +331,7 @@ All authenticated endpoints return a standardised envelope:
 | `GET` | `admin/health`, `admin/revenue` | System health + revenue |
 | `GET/POST` | `admin/merchant-payouts`, `.../:id/*` | Payout management |
 | `GET` | `admin/settlements` | Platform-wide settlements |
+| `GET` | `admin/gateways` | Gateway configurations |
 
 ---
 
@@ -296,8 +340,8 @@ All authenticated endpoints return a standardised envelope:
 ### Authentication Flow
 
 1. User submits credentials to `POST /auth/login`
-2. Server returns `{ token, merchant }` — JWT + merchant profile
-3. Token stored **in memory only** (Zustand + Axios interceptor variable)
+2. Server returns `{ success: true, data: { token, merchant } }` — JWT + merchant profile
+3. Token stored **in memory** (Zustand with localStorage persistence + Axios interceptor variable)
 4. On refresh: Zustand `persist` rehydrates from localStorage → validates via `GET /auth/me`
 5. Invalid tokens cleared immediately on any `401`
 
@@ -322,33 +366,41 @@ All Axios errors normalised into `ApiError`:
 interface ApiError { message: string; code?: string; status?: number; }
 ```
 
-| HTTP | Derived Code | UI |
+| HTTP | Derived Code | UI Behaviour |
 |---|---|---|
 | `401` | — | Clear session, redirect to login |
-| `403` | — | Preserve session, "Access denied" |
+| `403` | — | Preserve session, show "Access denied" |
 | `409` | `CONFLICT` | "Resource conflict" |
 | `429` | `RATE_LIMITED` | "Too many requests" |
 | `503` | `SERVICE_UNAVAILABLE` | "Service temporarily unavailable" |
+| Network | `ERR_NETWORK` / `ECONNABORTED` | Preserve session, show retry |
 
 ### API Keys v2
 
 Strict **reveal-once** policy:
 - `GET /developer/api-keys` — metadata only (prefix, last 4 chars). `fullKey` never included.
-- `POST /developer/api-keys` — `fullKey` returned once. Never persisted.
+- `POST /developer/api-keys` — `fullKey` returned once. Never persisted to storage.
 - `POST /developer/api-keys/:id/rotate` — old key invalidated, new `fullKey` returned once.
 - `POST /developer/api-keys/:id/revoke` — permanent disable.
 
+Key creation and rotation require a completed security challenge (OTP → `actionToken` → `X-Security-Action` header).
+
 ### Webhooks
 
-- **Legacy**: CRUD at `/webhooks`
+- **Legacy**: CRUD at `/webhooks` (always available)
 - **Merchant v2**: CRUD at `/merchant/webhooks` with delivery health metrics (`last24h`, `avgLatencyMs`) and secret rotation via security action
-- **Provider v2**: Read-only at `/provider/webhooks` — full CRUD not yet available
+- **Provider v2**: Read-only at `/provider/webhooks`
 
 ### Security Challenges
 
 Sensitive operations require a completed challenge flow:
-1. `GET /security/purposes` → 2. `POST /security/challenges/request` (6-digit email OTP) → 3. `POST /security/challenges/verify` → 4. `actionToken` returned
-5. Token passed as `X-Security-Action` header. Held **in memory only** — never persisted.
+
+1. `GET /security/purposes` → list available purposes
+2. `POST /security/challenges/request` → 6-digit email OTP sent
+3. `POST /security/challenges/verify` → `actionToken` returned
+4. `actionToken` passed as `X-Security-Action` header on the protected request
+
+Token held **in memory only** — never persisted.
 
 Applies to: API key creation/rotation, transfer confirmation, email verification, webhook secret rotation.
 
@@ -358,33 +410,54 @@ Applies to: API key creation/rotation, transfer confirmation, email verification
 
 ### Merchant Dashboard
 - **Real-time analytics** — KPI cards, volume charts, transaction breakdowns
-- **Payment management** — search, filtering, and detail views
-- **Multi-wallet support** — balance tracking and movement history
-- **Payout engine** — validation, FX quotes, idempotent creation, admin approval
-- **Multi-store management** — per-store configurations
-- **Products, invoices, subscriptions, payment links**
+- **Payment management** — search, filtering, and detail views for transactions
+- **Multi-wallet support** — balance tracking, movement history, deposits, payouts, swaps
+- **Payout engine** — validation, FX quotes, idempotent creation (`Idempotency-Key`), admin approval workflow
+- **Multi-store management** — per-store configurations and API key scoping
+- **Products, invoices, subscriptions, payment links** — full catalogue management
+- **FX & Treasury** — currency conversion, treasury overview with charts
 
 ### Developer Tools
 - **API Keys v2** — live/test environments, scope management, reveal-once security
-- **Webhook management** — delivery health monitoring, secret rotation
-- **SDK docs** — syntax-highlighted snippets (cURL, JS, Python)
+- **Webhook management** — legacy CRUD + v2 with delivery health monitoring and secret rotation
+- **SDK documentation** — syntax-highlighted code snippets (cURL, JavaScript, Python)
 - **In-app code examples** for rapid integration
 
 ### Admin Console
-- **Merchant directory**, **KYC review queue**, **payout management**
-- **System monitoring** — health, workers, queues, logs
-- **Revenue analytics**, **feature flag management**
+- **Merchant directory**, **KYC review queue**, **payout management** (approve/reject/process)
+- **System monitoring** — health checks, workers, queues, logs
+- **Revenue analytics**, **feature flag management**, **gateway configurations**
+- **Admin guard** — role-gated access via `GET /platform/capabilities` or fallback probe
 
-### Banking (Private Beta)
-Gated by `capabilities.banking`. Accounts, transfers, beneficiaries, FX quotes, statements. Cards and crypto coming soon.
+### Advisory
+- Services, cases, documents, and messages (gated by `capabilities.advisoryCases`, etc.)
 
 ### UX & Infrastructure
-- **Dark/light mode** (system detection + manual toggle)
-- **PWA** — installable with app shortcuts
-- **i18n** — 4 languages, automatic browser detection
-- **Responsive** — mobile-first with collapsible sidebar
-- **Route guards** — merchant and admin access control
-- **Toasts, skeletons, ARIA, keyboard navigation**
+- **Dark mode** (default) with theme toggle (next-themes, class-based)
+- **PWA** — installable with app shortcuts (Dashboard, Payments, Wallets, New Payout)
+- **i18n** — 4 languages, automatic browser detection, persisted user preference
+- **Responsive** — mobile-first with collapsible sidebar + command palette (`⌘K`)
+- **Route guards** — `MerchantGuard` (auth) + `AdminGuard` (role)
+- **Toast notifications** (Sonner), skeleton loaders, ARIA attributes, keyboard navigation
+- **Command palette** — fuzzy search across navigation, stores, and quick actions
+
+---
+
+## Module Status
+
+| Module | Status | Notes |
+|---|---|---|
+| Commerce (Overview, Payments, Wallets, Stores, Products) | ✅ Active | Full CRUD where applicable |
+| Payouts | ✅ Active | Validation + idempotent creation + admin workflow |
+| Settlements | ✅ Active | Read-only listing |
+| Customers | ✅ Active | Read-only directory |
+| Invoices, Subscriptions, Payment Links | ✅ Active | Read-only listings |
+| FX & Treasury | ✅ Active | Wallet swaps, treasury analytics |
+| API Keys (v1 + v2) | ✅ Active | Full lifecycle with security challenges |
+| Webhooks (Legacy + v2) | ✅ Active | v2 endpoints may 404 if backend not ready |
+| Admin Console | ✅ Active | Gated by admin role detection |
+| Advisory | ⚠️ Partial | Services visible; cases/documents/messages gated |
+| Banking | 🔒 Disabled | `capabilities.banking = false`; all sub-pages are placeholders |
 
 ---
 
@@ -422,13 +495,13 @@ bun run dev
 
 ```bash
 # ESLint
-npm run lint
+bun run lint
 
 # TypeScript type checking
 npx tsc --noEmit
 
-# Production build
-npm run build
+# Production build (standalone output)
+bun run build
 ```
 
 ---
@@ -441,7 +514,7 @@ src/
 │   ├── (auth)/                    # Login, register
 │   ├── (dashboard)/               # All authenticated pages
 │   │   ├── commerce/              # Payments, wallets, payouts, stores, products...
-│   │   ├── banking/               # Accounts, transfers, FX, beneficiaries...
+│   │   ├── banking/               # Accounts, transfers, FX, beneficiaries... (disabled)
 │   │   ├── developers/            # API keys v2, webhooks, docs
 │   │   ├── advisory/              # Services, cases, documents, messages
 │   │   └── admin/                  # KYC, risk, revenue, commerce, system
@@ -453,9 +526,9 @@ src/
 │   ├── landing/                   # Public landing page
 │   ├── auth/                      # Authentication screens
 │   ├── merchant/                  # Dashboard widgets (20+)
-│   ├── dashboard/                 # Shell, guards
+│   ├── dashboard/                 # Shell, merchant-guard, admin-guard
 │   ├── admin/                     # Admin panels (15+)
-│   ├── shared/                    # Reusable components
+│   ├── shared/                    # Reusable components (badges, charts, etc.)
 │   └── pwa-register.tsx           # PWA install prompt
 │
 ├── lib/
@@ -463,15 +536,15 @@ src/
 │   │                               #   endpoints, xpApi, capabilities-api, mock
 │   ├── i18n/                      # index.ts (store, useT), locales.ts (dictionaries)
 │   ├── pwa/register-sw.ts         # Service worker registration
-│   ├── storage/xp-storage.ts       # Storage management & migration
-│   ├── sdk-snippets.ts            # SDK code templates
-│   └── utils.ts                   # General utilities
+│   ├── storage/xp-storage.ts       # Storage management & legacy key migration
+│   ├── sdk-snippets.ts            # SDK code templates (cURL, JS, Python)
+│   └── utils.ts                   # General utilities (cn, formatCurrency, etc.)
 │
-├── types/                         # index, security, developer-v2, banking
-├── stores/                        # auth, platform, workspace, ui, admin
+├── types/                         # index (870+ lines), security, developer-v2, banking
+├── stores/                        # auth, platform, workspace, ui, admin (Zustand)
 ├── hooks/                         # use-queries, queries, use-mobile, use-toast
 ├── config/                        # Navigation, feature-flags, contacts
-└── providers/app-providers.tsx    # Root providers
+└── providers/app-providers.tsx    # Root providers (QueryClient + ThemeProvider)
 ```
 
 ---
@@ -509,11 +582,12 @@ Persisted user choices are never overridden by auto-detection.
 
 Fully installable Progressive Web App:
 
-- **Manifest**: `src/app/manifest.ts` — name, icons, theme (`#0B1220`), shortcuts
+- **Manifest**: `src/app/manifest.ts` — name, icons (SVG + 192/512 + maskable), theme (`#0B1220`)
 - **Service Worker**: `public/sw.js` — caching & offline support
 - **Shortcuts**: Dashboard, Payments, Wallets, New Payout
 - **Install Prompt**: `src/components/pwa-register.tsx`
-- **Display**: `standalone` mode
+- **Display**: `standalone` mode with `minimal-ui` fallback
+- **Categories**: finance, business, productivity, developer
 
 ---
 
@@ -524,11 +598,10 @@ Fully installable Progressive Web App:
 Next.js `standalone` output for minimal deployment:
 
 ```bash
-npm run build
+bun run build
 # Output: .next/standalone/ (self-contained server)
+# Build script copies public/ assets and .next/static/ into standalone dir
 ```
-
-Build script copies `public/` assets and `.next/static/` into the standalone directory.
 
 ### Environments
 
@@ -538,12 +611,18 @@ Build script copies `public/` assets and `.next/static/` into the standalone dir
 | Staging | `https://staging-api.xpay.expert/api/v1` |
 | Development | `https://api.xpay.expert/api/v1` |
 
+### Production Run
+
+```bash
+NODE_ENV=production node .next/standalone/server.js
+```
+
 ### Checklist
 
 1. Set `NEXT_PUBLIC_API_URL` for target environment
 2. Ensure API is accessible from deployment origin (CORS)
-3. Copy `public/` assets with standalone output
-4. Run: `NODE_ENV=production node .next/standalone/server.js`
+3. Copy `public/` assets with standalone output (handled by build script)
+4. Run the standalone server
 
 ---
 
