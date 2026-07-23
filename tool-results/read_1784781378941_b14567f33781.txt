@@ -1,0 +1,1030 @@
+    60→  SecurityChallengeResponse,
+    61→  SecurityChallengeVerifyResponse,
+    62→} from "@/types/security";
+    63→import type {
+    64→  DeveloperApiKeyCreatePayload,
+    65→  MerchantWebhookCreatePayload,
+    66→  MerchantWebhookUpdatePayload,
+    67→} from "@/types/developer-v2";
+    68→import type {
+    69→  BankingBeneficiaryCreatePayload,
+    70→  BankingTransferCreatePayload,
+    71→  BankingFxQuotePayload,
+    72→} from "@/types/banking";
+    73→
+    74→// Query key factory
+    75→export const queryKeys = {
+    76→  authMe: ["auth", "me"] as const,
+    77→  platformBootstrap: ["platform", "bootstrap"] as const,
+    78→  merchantProfile: ["merchant", "profile"] as const,
+    79→  stores: ["stores"] as const,
+    80→  storeDetail: (id: string) => ["stores", id] as const,
+    81→  apiKeys: ["api-keys"] as const,
+    82→  webhooks: ["webhooks"] as const,
+    83→  wallets: ["wallets"] as const,
+    84→  walletMovements: (filters?: DataTableFilters) => ["wallets", "movements", filters] as const,
+    85→  transactions: (filters?: DataTableFilters) => ["transactions", filters] as const,
+    86→  transactionStats: ["transactions", "stats"] as const,
+    87→  analyticsOverview: ["analytics", "overview"] as const,
+    88→  riskProfile: ["risk", "profile"] as const,
+    89→  treasuryOverview: ["treasury", "overview"] as const,
+    90→  customers: (filters?: DataTableFilters) => ["customers", filters] as const,
+    91→  products: ["products"] as const,
+    92→  paymentLinks: ["payment-links"] as const,
+    93→  invoices: ["invoices"] as const,
+    94→  subscriptions: ["subscriptions"] as const,
+    95→  // Settlements
+    96→  settlements: (filters?: DataTableFilters) => ["settlements", filters] as const,
+    97→  // Merchant Payouts
+    98→  merchantPayouts: (filters?: { status?: string; limit?: number; offset?: number }) => ["merchant", "payouts", filters] as const,
+    99→  merchantPayout: (id: string) => ["merchant", "payouts", id] as const,
+   100→  merchantPayoutOptions: ["merchant", "payouts", "options"] as const,
+   101→  // Admin Payouts
+   102→  adminPayouts: (filters?: { status?: string; merchantId?: string; method?: string; limit?: number; offset?: number }) => ["admin", "payouts", filters] as const,
+   103→  adminPayout: (id: string) => ["admin", "payouts", id] as const,
+   104→  // Admin Settlements
+   105→  adminSettlements: (filters?: DataTableFilters) => ["admin", "settlements", filters] as const,
+   106→  // Admin Merchants
+   107→  adminMerchants: ["admin", "merchants"] as const,
+   108→  // Admin KYC
+   109→  adminKyc: ["admin", "kyc"] as const,
+   110→  // Admin System
+   111→  adminHealth: ["admin", "health"] as const,
+   112→  adminRevenue: ["admin", "revenue"] as const,
+   113→  // Platform Capabilities
+   114→  platformCapabilities: ["platform", "capabilities"] as const,
+   115→  // Transaction Detail
+   116→  transactionDetail: (id: string) => ["transactions", id] as const,
+   117→  // KYC Status
+   118→  kycStatus: ["kyc", "status"] as const,
+   119→  securityPurposes: ["security", "purposes"] as const,
+   120→  developerApiKeysV2: ["developer", "api-keys", "v2"] as const,
+   121→  bankingCapabilities: ["banking", "capabilities"] as const,
+   122→  bankingAccounts: ["banking", "accounts"] as const,
+   123→  bankingAccount: (id: string) => ["banking", "accounts", id] as const,
+   124→  bankingAccountTransactions: (id: string, filters?: DataTableFilters) => ["banking", "accounts", id, "transactions", filters] as const,
+   125→  bankingBeneficiaries: ["banking", "beneficiaries"] as const,
+   126→  bankingTransfers: ["banking", "transfers"] as const,
+   127→  bankingTransfer: (id: string) => ["banking", "transfers", id] as const,
+   128→  bankingStatements: ["banking", "statements"] as const,
+   129→  merchantWebhooks: ["merchant", "webhooks"] as const,
+   130→  providerWebhooks: ["provider", "webhooks"] as const,
+   131→};
+   132→
+   133→const defaultOptions = {
+   134→  staleTime: 30 * 1000,
+   135→  retry: 1,
+   136→  refetchOnWindowFocus: false,
+   137→};
+   138→
+   139→// ---- Auth ----
+   140→
+   141→export function useAuthMe() {
+   142→  return useQuery({
+   143→    queryKey: queryKeys.authMe,
+   144→    queryFn: () => authEndpoints.me(),
+   145→    ...defaultOptions,
+   146→    enabled: false,
+   147→  });
+   148→}
+   149→
+   150→// ---- Platform Bootstrap ----
+   151→
+   152→export function usePlatformBootstrap(enabled = true) {
+   153→  return useQuery({
+   154→    queryKey: queryKeys.platformBootstrap,
+   155→    queryFn: async () => {
+   156→      const data = await platformEndpoints.bootstrap();
+   157→      return data;
+   158→    },
+   159→    ...defaultOptions,
+   160→    enabled,
+   161→    retry: 0,
+   162→  });
+   163→}
+   164→
+   165→// ---- Merchant Profile ----
+   166→
+   167→export function useMerchantProfile() {
+   168→  return useQuery({
+   169→    queryKey: queryKeys.merchantProfile,
+   170→    queryFn: () => profileEndpoints.get(),
+   171→    ...defaultOptions,
+   172→  });
+   173→}
+   174→
+   175→export function useUpdateMerchantProfile() {
+   176→  const qc = useQueryClient();
+   177→  return useMutation({
+   178→    mutationFn: (data: { name?: string; company?: string }) =>
+   179→      profileEndpoints.update(data),
+   180→    onSuccess: () => {
+   181→      qc.invalidateQueries({ queryKey: queryKeys.merchantProfile });
+   182→      qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
+   183→      toast.success("Profile updated successfully");
+   184→    },
+   185→    onError: (err: { message?: string }) => {
+   186→      toast.error(err?.message || "Failed to update profile");
+   187→    },
+   188→  });
+   189→}
+   190→
+   191→// ---- Stores ----
+   192→
+   193→export function useStores() {
+   194→  return useQuery({
+   195→    queryKey: queryKeys.stores,
+   196→    queryFn: () => storeEndpoints.list(),
+   197→    ...defaultOptions,
+   198→  });
+   199→}
+   200→
+   201→export function useCreateStore() {
+   202→  const qc = useQueryClient();
+   203→  return useMutation({
+   204→    mutationFn: (data: CreateStorePayload) => storeEndpoints.create(data),
+   205→    onSuccess: () => {
+   206→      qc.invalidateQueries({ queryKey: queryKeys.stores });
+   207→      qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
+   208→      toast.success("Store created successfully");
+   209→    },
+   210→    onError: (err: { message?: string }) => {
+   211→      toast.error(err?.message || "Failed to create store");
+   212→    },
+   213→  });
+   214→}
+   215→
+   216→export function useStore(id: string) {
+   217→  return useQuery({
+   218→    queryKey: queryKeys.storeDetail(id),
+   219→    queryFn: () => storeEndpoints.get(id),
+   220→    ...defaultOptions,
+   221→    enabled: !!id,
+   222→  });
+   223→}
+   224→
+   225→export function useUpdateStore(id: string) {
+   226→  const qc = useQueryClient();
+   227→  return useMutation({
+   228→    mutationFn: (data: UpdateStorePayload) => storeEndpoints.update(id, data),
+   229→    onSuccess: () => {
+   230→      qc.invalidateQueries({ queryKey: queryKeys.stores });
+   231→      qc.invalidateQueries({ queryKey: queryKeys.storeDetail(id) });
+   232→      qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
+   233→      toast.success("Store updated");
+   234→    },
+   235→    onError: (err: { message?: string }) => {
+   236→      toast.error(err?.message || "Failed to update store");
+   237→    },
+   238→  });
+   239→}
+   240→
+   241→// ---- API Keys ----
+   242→
+   243→export function useApiKeys() {
+   244→  return useQuery({
+   245→    queryKey: queryKeys.apiKeys,
+   246→    queryFn: () => apiKeyEndpoints.list(),
+   247→    ...defaultOptions,
+   248→  });
+   249→}
+   250→
+   251→export function useCreateApiKey() {
+   252→  const qc = useQueryClient();
+   253→  return useMutation({
+   254→    mutationFn: (data: CreateApiKeyPayload) => apiKeyEndpoints.create(data),
+   255→    onSuccess: () => {
+   256→      qc.invalidateQueries({ queryKey: queryKeys.apiKeys });
+   257→      toast.success("API Key created — copy it now, it won't be shown again");
+   258→    },
+   259→    onError: (err: { message?: string }) => {
+   260→      toast.error(err?.message || "Failed to create API Key");
+   261→    },
+   262→  });
+   263→}
+   264→
+   265→export function useDeleteApiKey() {
+   266→  const qc = useQueryClient();
+   267→  return useMutation({
+   268→    mutationFn: (id: string) => apiKeyEndpoints.delete(id),
+   269→    onSuccess: () => {
+   270→      qc.invalidateQueries({ queryKey: queryKeys.apiKeys });
+   271→      toast.success("API Key revoked");
+   272→    },
+   273→    onError: (err: { message?: string }) => {
+   274→      toast.error(err?.message || "Failed to revoke API Key");
+   275→    },
+   276→  });
+   277→}
+   278→
+   279→// ---- Webhooks ----
+   280→
+   281→export function useWebhooks() {
+   282→  return useQuery({
+   283→    queryKey: queryKeys.webhooks,
+   284→    queryFn: () => webhookEndpoints.list(),
+   285→    ...defaultOptions,
+   286→  });
+   287→}
+   288→
+   289→export function useCreateWebhook() {
+   290→  const qc = useQueryClient();
+   291→  return useMutation({
+   292→    mutationFn: (data: CreateWebhookPayload) => webhookEndpoints.create(data),
+   293→    onSuccess: () => {
+   294→      qc.invalidateQueries({ queryKey: queryKeys.webhooks });
+   295→      toast.success("Webhook created — save the secret now");
+   296→    },
+   297→    onError: (err: { message?: string }) => {
+   298→      toast.error(err?.message || "Failed to create webhook");
+   299→    },
+   300→  });
+   301→}
+   302→
+   303→export function useUpdateWebhook(id: string) {
+   304→  const qc = useQueryClient();
+   305→  return useMutation({
+   306→    mutationFn: (data: UpdateWebhookPayload) => webhookEndpoints.update(id, data),
+   307→    onSuccess: () => {
+   308→      qc.invalidateQueries({ queryKey: queryKeys.webhooks });
+   309→      toast.success("Webhook updated");
+   310→    },
+   311→    onError: (err: { message?: string }) => {
+   312→      toast.error(err?.message || "Failed to update webhook");
+   313→    },
+   314→  });
+   315→}
+   316→
+   317→export function useDeleteWebhook() {
+   318→  const qc = useQueryClient();
+   319→  return useMutation({
+   320→    mutationFn: (id: string) => webhookEndpoints.delete(id),
+   321→    onSuccess: () => {
+   322→      qc.invalidateQueries({ queryKey: queryKeys.webhooks });
+   323→      toast.success("Webhook deleted");
+   324→    },
+   325→    onError: (err: { message?: string }) => {
+   326→      toast.error(err?.message || "Failed to delete webhook");
+   327→    },
+   328→  });
+   329→}
+   330→
+   331→// ---- Wallets ----
+   332→
+   333→export function useWallets() {
+   334→  return useQuery({
+   335→    queryKey: queryKeys.wallets,
+   336→    queryFn: () => walletEndpoints.list(),
+   337→    ...defaultOptions,
+   338→  });
+   339→}
+   340→
+   341→// ---- Transactions ----
+   342→
+   343→export function useTransactions(filters?: DataTableFilters) {
+   344→  return useQuery({
+   345→    queryKey: queryKeys.transactions(filters),
+   346→    queryFn: () => transactionEndpoints.list(filters),
+   347→    ...defaultOptions,
+   348→  });
+   349→}
+   350→
+   351→export function useTransactionStats() {
+   352→  return useQuery({
+   353→    queryKey: queryKeys.transactionStats,
+   354→    queryFn: () => transactionEndpoints.stats(),
+   355→    ...defaultOptions,
+   356→  });
+   357→}
+   358→
+   359→// ---- Analytics ----
+   360→
+   361→export function useAnalyticsOverview() {
+   362→  return useQuery({
+   363→    queryKey: queryKeys.analyticsOverview,
+   364→    queryFn: () => analyticsEndpoints.overview(),
+   365→    ...defaultOptions,
+   366→  });
+   367→}
+   368→
+   369→// ---- Risk ----
+   370→
+   371→export function useRiskProfile() {
+   372→  return useQuery({
+   373→    queryKey: queryKeys.riskProfile,
+   374→    queryFn: () => riskEndpoints.profile(),
+   375→    ...defaultOptions,
+   376→  });
+   377→}
+   378→
+   379→// ---- Treasury ----
+   380→
+   381→export function useTreasuryOverview() {
+   382→  return useQuery({
+   383→    queryKey: queryKeys.treasuryOverview,
+   384→    queryFn: () => treasuryEndpoints.overview(),
+   385→    ...defaultOptions,
+   386→  });
+   387→}
+   388→
+   389→// ---- Customers ----
+   390→
+   391→export function useCustomers(filters?: DataTableFilters) {
+   392→  return useQuery({
+   393→    queryKey: queryKeys.customers(filters),
+   394→    queryFn: () => customerEndpoints.list(filters),
+   395→    ...defaultOptions,
+   396→  });
+   397→}
+   398→
+   399→// ---- Products ----
+   400→
+   401→export function useProducts() {
+   402→  return useQuery({
+   403→    queryKey: queryKeys.products,
+   404→    queryFn: () => productEndpoints.list(),
+   405→    ...defaultOptions,
+   406→  });
+   407→}
+   408→
+   409→// ---- Payment Links ----
+   410→
+   411→export function usePaymentLinks() {
+   412→  return useQuery({
+   413→    queryKey: queryKeys.paymentLinks,
+   414→    queryFn: () => paymentLinkEndpoints.list(),
+   415→    ...defaultOptions,
+   416→  });
+   417→}
+   418→
+   419→// ---- Invoices ----
+   420→
+   421→export function useInvoices() {
+   422→  return useQuery({
+   423→    queryKey: queryKeys.invoices,
+   424→    queryFn: () => invoiceEndpoints.list(),
+   425→    ...defaultOptions,
+   426→  });
+   427→}
+   428→
+   429→// ---- Subscriptions ----
+   430→
+   431→export function useSubscriptions() {
+   432→  return useQuery({
+   433→    queryKey: queryKeys.subscriptions,
+   434→    queryFn: () => subscriptionEndpoints.list(),
+   435→    ...defaultOptions,
+   436→  });
+   437→}
+   438→
+   439→// ---- Settlements ----
+   440→
+   441→export function useSettlements(filters?: DataTableFilters) {
+   442→  return useQuery({
+   443→    queryKey: queryKeys.settlements(filters),
+   444→    queryFn: () => settlementEndpoints.list(filters),
+   445→    ...defaultOptions,
+   446→  });
+   447→}
+   448→
+   449→// ---- Merchant Payout Options ----
+   450→
+   451→export function useMerchantPayoutOptions() {
+   452→  return useQuery({
+   453→    queryKey: queryKeys.merchantPayoutOptions,
+   454→    queryFn: () => merchantPayoutEndpoints.options(),
+   455→    ...defaultOptions,
+   456→    retry: 0,
+   457→  });
+   458→}
+   459→
+   460→// ---- Validate Merchant Payout ----
+   461→
+   462→export function useValidateMerchantPayout() {
+   463→  return useMutation({
+   464→    mutationFn: (payload: CreateMerchantPayoutPayload) =>
+   465→      merchantPayoutEndpoints.validate(payload),
+   466→  });
+   467→}
+   468→
+   469→// ---- Create Merchant Payout ----
+   470→
+   471→export function useCreateMerchantPayout() {
+   472→  const qc = useQueryClient();
+   473→  return useMutation({
+   474→    mutationFn: ({ payload, idempotencyKey }: { payload: CreateMerchantPayoutPayload; idempotencyKey: string }) =>
+   475→      merchantPayoutEndpoints.create(payload, idempotencyKey),
+   476→    onSuccess: () => {
+   477→      qc.invalidateQueries({ queryKey: queryKeys.wallets });
+   478→      qc.invalidateQueries({ queryKey: queryKeys.merchantPayouts() });
+   479→      qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
+   480→      qc.invalidateQueries({ queryKey: queryKeys.treasuryOverview });
+   481→    },
+   482→  });
+   483→}
+   484→
+   485→// ---- Merchant Payouts List ----
+   486→
+   487→export function useMerchantPayouts(filters?: { status?: string; limit?: number; offset?: number }) {
+   488→  return useQuery({
+   489→    queryKey: queryKeys.merchantPayouts(filters),
+   490→    queryFn: () => merchantPayoutEndpoints.list(filters),
+   491→    ...defaultOptions,
+   492→  });
+   493→}
+   494→
+   495→// ---- Merchant Payout Detail ----
+   496→
+   497→export function useMerchantPayout(id: string) {
+   498→  return useQuery({
+   499→    queryKey: queryKeys.merchantPayout(id),
+   500→    queryFn: () => merchantPayoutEndpoints.get(id),
+   501→    ...defaultOptions,
+   502→    enabled: !!id,
+   503→  });
+   504→}
+   505→
+   506→// ---- Cancel Merchant Payout ----
+   507→
+   508→export function useCancelMerchantPayout() {
+   509→  const qc = useQueryClient();
+   510→  return useMutation({
+   511→    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+   512→      merchantPayoutEndpoints.cancel(id, reason),
+   513→    onSuccess: () => {
+   514→      qc.invalidateQueries({ queryKey: queryKeys.wallets });
+   515→      qc.invalidateQueries({ queryKey: queryKeys.merchantPayouts() });
+   516→      qc.invalidateQueries({ queryKey: queryKeys.treasuryOverview });
+   517→      toast.success("Payout cancelled");
+   518→    },
+   519→    onError: (err: { message?: string; code?: string }) => {
+   520→      toast.error(err?.message || err?.code || "Failed to cancel payout");
+   521→    },
+   522→  });
+   523→}
+   524→
+   525→// ---- Admin Capability (Hook) ----
+   526→
+   527→export function useAdminCapability() {
+   528→  const store = useAdminStore();
+   529→
+   530→  return {
+   531→    isPlatformAdmin: store.isPlatformAdmin,
+   532→    adminCapabilityStatus: store.adminCapabilityStatus,
+   533→    checkAdminCapability: store.checkAdminCapability,
+   534→  };
+   535→}
+   536→
+   537→// ---- Admin Merchant Payouts ----
+   538→
+   539→export function useAdminMerchantPayouts(filters?: { status?: string; merchantId?: string; method?: string; limit?: number; offset?: number }) {
+   540→  return useQuery({
+   541→    queryKey: queryKeys.adminPayouts(filters),
+   542→    queryFn: () => adminMerchantPayoutEndpoints.list(filters),
+   543→    ...defaultOptions,
+   544→  });
+   545→}
+   546→
+   547→export function useAdminMerchantPayout(id: string) {
+   548→  return useQuery({
+   549→    queryKey: queryKeys.adminPayout(id),
+   550→    queryFn: () => adminMerchantPayoutEndpoints.get(id),
+   551→    ...defaultOptions,
+   552→    enabled: !!id,
+   553→  });
+   554→}
+   555→
+   556→export function useQuoteMerchantPayoutFx() {
+   557→  const qc = useQueryClient();
+   558→  return useMutation({
+   559→    mutationFn: ({ id, payload }: { id: string; payload: AdminFxQuotePayload }) =>
+   560→      adminMerchantPayoutEndpoints.quoteFx(id, payload),
+   561→    onSuccess: (_data, vars) => {
+   562→      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+   563→      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+   564→      toast.success("FX quote applied");
+   565→    },
+   566→    onError: (err: { message?: string; code?: string }) => {
+   567→      toast.error(err?.message || err?.code || "Failed to quote FX");
+   568→    },
+   569→  });
+   570→}
+   571→
+   572→export function useApproveMerchantPayout() {
+   573→  const qc = useQueryClient();
+   574→  return useMutation({
+   575→    mutationFn: ({ id, note }: { id: string; note?: string }) =>
+   576→      adminMerchantPayoutEndpoints.approve(id, note),
+   577→    onSuccess: (_data, vars) => {
+   578→      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+   579→      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+   580→      toast.success("Payout approved");
+   581→    },
+   582→    onError: (err: { message?: string; code?: string }) => {
+   583→      toast.error(err?.message || err?.code || "Failed to approve payout");
+   584→    },
+   585→  });
+   586→}
+   587→
+   588→export function useProcessMerchantPayout() {
+   589→  const qc = useQueryClient();
+   590→  return useMutation({
+   591→    mutationFn: ({ id, payload }: { id: string; payload: AdminProcessingPayload }) =>
+   592→      adminMerchantPayoutEndpoints.processing(id, payload),
+   593→    onSuccess: (_data, vars) => {
+   594→      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+   595→      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+   596→      toast.success("Payout marked as processing");
+   597→    },
+   598→    onError: (err: { message?: string; code?: string }) => {
+   599→      toast.error(err?.message || err?.code || "Failed to process payout");
+   600→    },
+   601→  });
+   602→}
+   603→
+   604→export function useMarkMerchantPayoutPaid() {
+   605→  const qc = useQueryClient();
+   606→  return useMutation({
+   607→    mutationFn: ({ id, payload }: { id: string; payload: AdminPaidPayload }) =>
+   608→      adminMerchantPayoutEndpoints.paid(id, payload),
+   609→    onSuccess: (_data, vars) => {
+   610→      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+   611→      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+   612→      qc.invalidateQueries({ queryKey: queryKeys.wallets });
+   613→      qc.invalidateQueries({ queryKey: queryKeys.treasuryOverview });
+   614→      toast.success("Payout marked as paid");
+   615→    },
+   616→    onError: (err: { message?: string; code?: string }) => {
+   617→      toast.error(err?.message || err?.code || "Failed to mark payout as paid");
+   618→    },
+   619→  });
+   620→}
+   621→
+   622→export function useRejectMerchantPayout() {
+   623→  const qc = useQueryClient();
+   624→  return useMutation({
+   625→    mutationFn: ({ id, payload }: { id: string; payload: AdminRejectPayload }) =>
+   626→      adminMerchantPayoutEndpoints.reject(id, payload),
+   627→    onSuccess: (_data, vars) => {
+   628→      qc.invalidateQueries({ queryKey: queryKeys.adminPayout(vars.id) });
+   629→      qc.invalidateQueries({ queryKey: queryKeys.adminPayouts() });
+   630→      qc.invalidateQueries({ queryKey: queryKeys.wallets });
+   631→      qc.invalidateQueries({ queryKey: queryKeys.treasuryOverview });
+   632→      toast.success("Payout rejected");
+   633→    },
+   634→    onError: (err: { message?: string; code?: string }) => {
+   635→      toast.error(err?.message || err?.code || "Failed to reject payout");
+   636→    },
+   637→  });
+   638→}
+   639→
+   640→// ---- Admin Settlements ----
+   641→
+   642→export function useAdminSettlements(filters?: DataTableFilters) {
+   643→  return useQuery({
+   644→    queryKey: queryKeys.adminSettlements(filters),
+   645→    queryFn: () => adminSettlementEndpoints.list(filters),
+   646→    ...defaultOptions,
+   647→  });
+   648→}
+   649→
+   650→// ---- Admin Merchants ----
+   651→
+   652→export function useAdminMerchants() {
+   653→  return useQuery({
+   654→    queryKey: queryKeys.adminMerchants,
+   655→    queryFn: () => adminMerchantEndpoints.list(),
+   656→    ...defaultOptions,
+   657→  });
+   658→}
+   659→
+   660→// ---- Admin KYC ----
+   661→
+   662→export function useAdminKyc() {
+   663→  return useQuery({
+   664→    queryKey: queryKeys.adminKyc,
+   665→    queryFn: () => adminKycEndpoints.queue(),
+   666→    ...defaultOptions,
+   667→  });
+   668→}
+   669→
+   670→// ---- Admin System ----
+   671→
+   672→export function useAdminHealth() {
+   673→  return useQuery({
+   674→    queryKey: queryKeys.adminHealth,
+   675→    queryFn: () => adminSystemEndpoints.health(),
+   676→    ...defaultOptions,
+   677→  });
+   678→}
+   679→
+   680→export function useAdminRevenue() {
+   681→  return useQuery({
+   682→    queryKey: queryKeys.adminRevenue,
+   683→    queryFn: () => adminSystemEndpoints.revenue(),
+   684→    ...defaultOptions,
+   685→  });
+   686→}
+   687→
+   688→// ---- Platform Capabilities ----
+   689→
+   690→export function usePlatformCapabilities() {
+   691→  return useQuery({
+   692→    queryKey: queryKeys.platformCapabilities,
+   693→    queryFn: () => fetchPlatformCapabilities(),
+   694→    ...defaultOptions,
+   695→    staleTime: 5 * 60 * 1000, // 5 minutes — capabilities change rarely
+   696→    retry: 1,
+   697→    enabled: true,
+   698→  });
+   699→}
+   700→
+   701→// ---- Transaction Detail ----
+   702→
+   703→export function useTransactionDetail(id: string) {
+   704→  return useQuery({
+   705→    queryKey: queryKeys.transactionDetail(id),
+   706→    queryFn: () => transactionDetailEndpoints.get(id),
+   707→    ...defaultOptions,
+   708→    enabled: !!id,
+   709→  });
+   710→}
+   711→
+   712→// ---- Wallet Movements ----
+   713→
+   714→export function useWalletMovements(filters?: DataTableFilters) {
+   715→  return useQuery({
+   716→    queryKey: queryKeys.walletMovements(filters),
+   717→    queryFn: () => walletMovementEndpoints.list(filters),
+   718→    ...defaultOptions,
+   719→  });
+   720→}
+   721→
+   722→// ---- KYC Status ----
+   723→
+   724→export function useKycStatus() {
+   725→  return useQuery({
+   726→    queryKey: queryKeys.kycStatus,
+   727→    queryFn: () => kycEndpoints.status(),
+   728→    ...defaultOptions,
+   729→  });
+   730→}
+   731→
+   732→// ---- Security Challenges ----
+   733→
+   734→export function useSecurityPurposes() {
+   735→  return useQuery({
+   736→    queryKey: queryKeys.securityPurposes,
+   737→    queryFn: () => securityEndpoints.purposes(),
+   738→    ...defaultOptions,
+   739→    staleTime: 5 * 60 * 1000,
+   740→  });
+   741→}
+   742→
+   743→export function useRequestSecurityChallenge() {
+   744→  return useMutation({
+   745→    mutationFn: (data: SecurityChallengeRequest) =>
+   746→      securityEndpoints.requestChallenge(data),
+   747→  });
+   748→}
+   749→
+   750→export function useVerifySecurityChallenge() {
+   751→  return useMutation({
+   752→    mutationFn: (data: SecurityChallengeVerifyRequest) =>
+   753→      securityEndpoints.verifyChallenge(data),
+   754→  });
+   755→}
+   756→
+   757→export function useCompleteEmailVerification() {
+   758→  const qc = useQueryClient();
+   759→  return useMutation({
+   760→    mutationFn: (actionToken: string) =>
+   761→      securityEndpoints.completeEmailVerification(actionToken),
+   762→    onSuccess: () => {
+   763→      qc.invalidateQueries({ queryKey: queryKeys.authMe });
+   764→      qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
+   765→      qc.invalidateQueries({ queryKey: queryKeys.platformCapabilities });
+   766→      toast.success("Email verified successfully");
+   767→    },
+   768→    onError: (err: { message?: string; code?: string; status?: number }) => {
+   769→      if (err.status === 429 || err.code === "RATE_LIMITED") {
+   770→        toast.error("Rate limited");
+   771→      } else {
+   772→        toast.error(err?.message || "Failed to verify email");
+   773→      }
+   774→    },
+   775→  });
+   776→}
+   777→
+   778→// ---- Developer API Keys v2 ----
+   779→
+   780→export function useDeveloperApiKeysV2() {
+   781→  const auth = useAuth();
+   782→  return useQuery({
+   783→    queryKey: queryKeys.developerApiKeysV2,
+   784→    queryFn: () => developerApiKeysV2Endpoints.list(),
+   785→    ...defaultOptions,
+   786→    enabled: auth.authenticated,
+   787→  });
+   788→}
+   789→
+   790→export function useCreateDeveloperApiKeyV2() {
+   791→  const qc = useQueryClient();
+   792→  return useMutation({
+   793→    mutationFn: ({ payload, actionToken }: { payload: DeveloperApiKeyCreatePayload; actionToken?: string }) =>
+   794→      developerApiKeysV2Endpoints.create(payload, actionToken),
+   795→    onSuccess: () => {
+   796→      qc.invalidateQueries({ queryKey: queryKeys.developerApiKeysV2 });
+   797→    },
+   798→    onError: (err: { message?: string; code?: string; status?: number }) => {
+   799→      if (err.status === 429 || err.code === "RATE_LIMITED") {
+   800→        toast.error("Rate limited");
+   801→      } else if (err.status === 409 || err.code === "CONFLICT") {
+   802→        toast.error("Conflict");
+   803→      } else {
+   804→        toast.error(err?.message || "Failed to create API Key");
+   805→      }
+   806→    },
+   807→  });
+   808→}
+   809→
+   810→export function useRotateDeveloperApiKeyV2() {
+   811→  const qc = useQueryClient();
+   812→  return useMutation({
+   813→    mutationFn: ({ id, actionToken }: { id: string; actionToken: string }) =>
+   814→      developerApiKeysV2Endpoints.rotate(id, actionToken),
+   815→    onSuccess: () => {
+   816→      qc.invalidateQueries({ queryKey: queryKeys.developerApiKeysV2 });
+   817→    },
+   818→    onError: (err: { message?: string; code?: string; status?: number }) => {
+   819→      if (err.status === 429 || err.code === "RATE_LIMITED") {
+   820→        toast.error("Rate limited");
+   821→      } else {
+   822→        toast.error(err?.message || "Failed to rotate API Key");
+   823→      }
+   824→    },
+   825→  });
+   826→}
+   827→
+   828→export function useRevokeDeveloperApiKeyV2() {
+   829→  const qc = useQueryClient();
+   830→  return useMutation({
+   831→    mutationFn: (id: string) =>
+   832→      developerApiKeysV2Endpoints.revoke(id),
+   833→    onSuccess: () => {
+   834→      qc.invalidateQueries({ queryKey: queryKeys.developerApiKeysV2 });
+   835→      toast.success("API Key revoked");
+   836→    },
+   837→    onError: (err: { message?: string }) => {
+   838→      toast.error(err?.message || "Failed to revoke API Key");
+   839→    },
+   840→  });
+   841→}
+   842→
+   843→// ---- Merchant Webhooks v2 ----
+   844→
+   845→export function useMerchantWebhooks() {
+   846→  return useQuery({
+   847→    queryKey: queryKeys.merchantWebhooks,
+   848→    queryFn: () => merchantWebhookEndpoints.list(),
+   849→    ...defaultOptions,
+   850→  });
+   851→}
+   852→
+   853→export function useCreateMerchantWebhook() {
+   854→  const qc = useQueryClient();
+   855→  return useMutation({
+   856→    mutationFn: (data: MerchantWebhookCreatePayload) =>
+   857→      merchantWebhookEndpoints.create(data),
+   858→    onSuccess: () => {
+   859→      qc.invalidateQueries({ queryKey: queryKeys.merchantWebhooks });
+   860→      toast.success("Webhook created");
+   861→    },
+   862→    onError: (err: { message?: string; code?: string; status?: number }) => {
+   863→      if (err.status === 429 || err.code === "RATE_LIMITED") {
+   864→        toast.error("Rate limited");
+   865→      } else if (err.status === 409 || err.code === "CONFLICT") {
+   866→        toast.error("Conflict");
+   867→      } else {
+   868→        toast.error(err?.message || "Failed to create webhook");
+   869→      }
+   870→    },
+   871→  });
+   872→}
+   873→
+   874→export function useUpdateMerchantWebhook(id: string) {
+   875→  const qc = useQueryClient();
+   876→  return useMutation({
+   877→    mutationFn: (data: MerchantWebhookUpdatePayload) =>
+   878→      merchantWebhookEndpoints.update(id, data),
+   879→    onSuccess: () => {
+   880→      qc.invalidateQueries({ queryKey: queryKeys.merchantWebhooks });
+   881→      toast.success("Webhook updated");
+   882→    },
+   883→    onError: (err: { message?: string }) => {
+   884→      toast.error(err?.message || "Failed to update webhook");
+   885→    },
+   886→  });
+   887→}
+   888→
+   889→export function useDeleteMerchantWebhook() {
+   890→  const qc = useQueryClient();
+   891→  return useMutation({
+   892→    mutationFn: (id: string) =>
+   893→      merchantWebhookEndpoints.delete(id),
+   894→    onSuccess: () => {
+   895→      qc.invalidateQueries({ queryKey: queryKeys.merchantWebhooks });
+   896→      toast.success("Webhook deleted");
+   897→    },
+   898→    onError: (err: { message?: string }) => {
+   899→      toast.error(err?.message || "Failed to delete webhook");
+   900→    },
+   901→  });
+   902→}
+   903→
+   904→export function useRotateMerchantWebhookSecret() {
+   905→  const qc = useQueryClient();
+   906→  return useMutation({
+   907→    mutationFn: ({ id, actionToken }: { id: string; actionToken: string }) =>
+   908→      merchantWebhookEndpoints.rotateSecret(id, actionToken),
+   909→    onSuccess: () => {
+   910→      qc.invalidateQueries({ queryKey: queryKeys.merchantWebhooks });
+   911→    },
+   912→    onError: (err: { message?: string; code?: string; status?: number }) => {
+   913→      if (err.status === 429 || err.code === "RATE_LIMITED") {
+   914→        toast.error("Rate limited");
+   915→      } else {
+   916→        toast.error(err?.message || "Failed to rotate webhook secret");
+   917→      }
+   918→    },
+   919→  });
+   920→}
+   921→
+   922→// ---- Provider Webhooks ----
+   923→
+   924→export function useProviderWebhooks() {
+   925→  return useQuery({
+   926→    queryKey: queryKeys.providerWebhooks,
+   927→    queryFn: () => providerWebhookEndpoints.list(),
+   928→    ...defaultOptions,
+   929→  });
+   930→}
+   931→
+   932→// ---- Banking ----
+   933→
+   934→export function useBankingCapabilities() {
+   935→  const { data: caps } = usePlatformCapabilities();
+   936→  return useQuery({
+   937→    queryKey: queryKeys.bankingCapabilities,
+   938→    queryFn: () => bankingEndpoints.capabilities(),
+   939→    ...defaultOptions,
+   940→    enabled: caps?.capabilities.banking === true,
+   941→    staleTime: 5 * 60 * 1000,
+   942→  });
+   943→}
+   944→
+   945→export function useBankingAccounts() {
+   946→  return useQuery({
+   947→    queryKey: queryKeys.bankingAccounts,
+   948→    queryFn: () => bankingEndpoints.accounts(),
+   949→    ...defaultOptions,
+   950→  });
+   951→}
+   952→
+   953→export function useBankingAccount(id: string) {
+   954→  return useQuery({
+   955→    queryKey: queryKeys.bankingAccount(id),
+   956→    queryFn: () => bankingEndpoints.account(id),
+   957→    ...defaultOptions,
+   958→    enabled: !!id,
+   959→  });
+   960→}
+   961→
+   962→export function useBankingAccountTransactions(id: string, filters?: DataTableFilters) {
+   963→  return useQuery({
+   964→    queryKey: queryKeys.bankingAccountTransactions(id, filters),
+   965→    queryFn: () => bankingEndpoints.accountTransactions(id, filters),
+   966→    ...defaultOptions,
+   967→    enabled: !!id,
+   968→  });
+   969→}
+   970→
+   971→export function useBankingBeneficiaries() {
+   972→  return useQuery({
+   973→    queryKey: queryKeys.bankingBeneficiaries,
+   974→    queryFn: () => bankingEndpoints.beneficiaries(),
+   975→    ...defaultOptions,
+   976→  });
+   977→}
+   978→
+   979→export function useCreateBankingBeneficiary() {
+   980→  const qc = useQueryClient();
+   981→  return useMutation({
+   982→    mutationFn: (data: BankingBeneficiaryCreatePayload) =>
+   983→      bankingEndpoints.createBeneficiary(data),
+   984→    onSuccess: () => {
+   985→      qc.invalidateQueries({ queryKey: queryKeys.bankingBeneficiaries });
+   986→      toast.success("Beneficiary created");
+   987→    },
+   988→    onError: (err: { message?: string; code?: string; status?: number }) => {
+   989→      if (err.status === 429 || err.code === "RATE_LIMITED") {
+   990→        toast.error("Rate limited");
+   991→      } else if (err.status === 409 || err.code === "CONFLICT") {
+   992→        toast.error("Conflict");
+   993→      } else {
+   994→        toast.error(err?.message || "Failed to create beneficiary");
+   995→      }
+   996→    },
+   997→  });
+   998→}
+   999→
+  1000→export function useBankingTransfers() {
+  1001→  return useQuery({
+  1002→    queryKey: queryKeys.bankingTransfers,
+  1003→    queryFn: () => bankingEndpoints.transfers(),
+  1004→    ...defaultOptions,
+  1005→  });
+  1006→}
+  1007→
+  1008→export function useBankingTransfer(id: string) {
+  1009→  return useQuery({
+  1010→    queryKey: queryKeys.bankingTransfer(id),
+  1011→    queryFn: () => bankingEndpoints.transfer(id),
+  1012→    ...defaultOptions,
+  1013→    enabled: !!id,
+  1014→  });
+  1015→}
+  1016→
+  1017→export function useCreateBankingTransfer() {
+  1018→  const qc = useQueryClient();
+  1019→  return useMutation({
+  1020→    mutationFn: ({ payload, idempotencyKey }: { payload: BankingTransferCreatePayload; idempotencyKey: string }) =>
+  1021→      bankingEndpoints.createTransfer(payload, idempotencyKey),
+  1022→    onSuccess: () => {
+  1023→      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfers });
+  1024→      qc.invalidateQueries({ queryKey: queryKeys.bankingAccounts });
+  1025→    },
+  1026→    onError: (err: { message?: string; code?: string; status?: number }) => {
+  1027→      if (err.status === 429 || err.code === "RATE_LIMITED") {
+  1028→        toast.error("Rate limited");
+  1029→      } else if (err.status === 409 || err.code === "CONFLICT") {
+  1030→        toast.error("Possible duplicate transfer");
+  1031→      } else {
+  1032→        toast.error(err?.message || "Failed to create transfer");
+  1033→      }
+  1034→    },
+  1035→  });
+  1036→}
+  1037→
+  1038→export function useConfirmBankingTransfer() {
+  1039→  const qc = useQueryClient();
+  1040→  return useMutation({
+  1041→    mutationFn: ({ id, actionToken }: { id: string; actionToken: string }) =>
+  1042→      bankingEndpoints.confirmTransfer(id, actionToken),
+  1043→    onSuccess: (_data, vars) => {
+  1044→      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfers });
+  1045→      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfer(vars.id) });
+  1046→      qc.invalidateQueries({ queryKey: queryKeys.bankingAccounts });
+  1047→    },
+  1048→    onError: (err: { message?: string; code?: string; status?: number }) => {
+  1049→      if (err.status === 429 || err.code === "RATE_LIMITED") {
+  1050→        toast.error("Rate limited");
+  1051→      } else {
+  1052→        toast.error(err?.message || "Failed to confirm transfer");
+  1053→      }
+  1054→    },
+  1055→  });
+  1056→}
+  1057→
+  1058→export function useCancelBankingTransfer() {
+  1059→  const qc = useQueryClient();
+  1060→  return useMutation({
+  1061→    mutationFn: ({ id }: { id: string }) =>
+  1062→      bankingEndpoints.cancelTransfer(id),
+  1063→    onSuccess: (_data, vars) => {
+  1064→      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfers });
+  1065→      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfer(vars.id) });
+  1066→      qc.invalidateQueries({ queryKey: queryKeys.bankingAccounts });
+  1067→      toast.success("Transfer cancelled");
+  1068→    },
+  1069→    onError: (err: { message?: string }) => {
+  1070→      toast.error(err?.message || "Failed to cancel transfer");
+  1071→    },
+  1072→  });
+  1073→}
+  1074→
+  1075→export function useCreateBankingFxQuote() {
+  1076→  return useMutation({
+  1077→    mutationFn: (data: BankingFxQuotePayload) =>
+  1078→      bankingEndpoints.createFxQuote(data),
+  1079→  });
+  1080→}
+  1081→
+  1082→export function useBankingStatements() {
+  1083→  return useQuery({
+  1084→    queryKey: queryKeys.bankingStatements,
+  1085→    queryFn: () => bankingEndpoints.statements(),
+  1086→    ...defaultOptions,
+  1087→  });
+  1088→}
+  1089→
