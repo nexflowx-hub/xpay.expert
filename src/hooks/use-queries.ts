@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAdminStore } from "@/stores/admin";
+import { useAuth } from "@/stores/auth";
 import {
   authEndpoints,
   platformEndpoints,
@@ -32,6 +33,13 @@ import {
   kycEndpoints,
 } from "@/lib/api/endpoints";
 import { fetchPlatformCapabilities } from "@/lib/api/capabilities-api";
+import {
+  securityEndpoints,
+  developerApiKeysV2Endpoints,
+  merchantWebhookEndpoints,
+  providerWebhookEndpoints,
+  bankingEndpoints,
+} from "@/lib/api/endpoints";
 import type {
   CreateStorePayload,
   UpdateStorePayload,
@@ -45,6 +53,23 @@ import type {
   AdminPaidPayload,
   AdminRejectPayload,
 } from "@/types";
+import type {
+  SecurityChallengeRequest,
+  SecurityChallengeVerifyRequest,
+  SecurityPurposeInfo,
+  SecurityChallengeResponse,
+  SecurityChallengeVerifyResponse,
+} from "@/types/security";
+import type {
+  DeveloperApiKeyCreatePayload,
+  MerchantWebhookCreatePayload,
+  MerchantWebhookUpdatePayload,
+} from "@/types/developer-v2";
+import type {
+  BankingBeneficiaryCreatePayload,
+  BankingTransferCreatePayload,
+  BankingFxQuotePayload,
+} from "@/types/banking";
 
 // Query key factory
 export const queryKeys = {
@@ -91,6 +116,18 @@ export const queryKeys = {
   transactionDetail: (id: string) => ["transactions", id] as const,
   // KYC Status
   kycStatus: ["kyc", "status"] as const,
+  securityPurposes: ["security", "purposes"] as const,
+  developerApiKeysV2: ["developer", "api-keys", "v2"] as const,
+  bankingCapabilities: ["banking", "capabilities"] as const,
+  bankingAccounts: ["banking", "accounts"] as const,
+  bankingAccount: (id: string) => ["banking", "accounts", id] as const,
+  bankingAccountTransactions: (id: string, filters?: DataTableFilters) => ["banking", "accounts", id, "transactions", filters] as const,
+  bankingBeneficiaries: ["banking", "beneficiaries"] as const,
+  bankingTransfers: ["banking", "transfers"] as const,
+  bankingTransfer: (id: string) => ["banking", "transfers", id] as const,
+  bankingStatements: ["banking", "statements"] as const,
+  merchantWebhooks: ["merchant", "webhooks"] as const,
+  providerWebhooks: ["provider", "webhooks"] as const,
 };
 
 const defaultOptions = {
@@ -688,6 +725,364 @@ export function useKycStatus() {
   return useQuery({
     queryKey: queryKeys.kycStatus,
     queryFn: () => kycEndpoints.status(),
+    ...defaultOptions,
+  });
+}
+
+// ---- Security Challenges ----
+
+export function useSecurityPurposes() {
+  return useQuery({
+    queryKey: queryKeys.securityPurposes,
+    queryFn: () => securityEndpoints.purposes(),
+    ...defaultOptions,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useRequestSecurityChallenge() {
+  return useMutation({
+    mutationFn: (data: SecurityChallengeRequest) =>
+      securityEndpoints.requestChallenge(data),
+  });
+}
+
+export function useVerifySecurityChallenge() {
+  return useMutation({
+    mutationFn: (data: SecurityChallengeVerifyRequest) =>
+      securityEndpoints.verifyChallenge(data),
+  });
+}
+
+export function useCompleteEmailVerification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (actionToken: string) =>
+      securityEndpoints.completeEmailVerification(actionToken),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.authMe });
+      qc.invalidateQueries({ queryKey: queryKeys.platformBootstrap });
+      qc.invalidateQueries({ queryKey: queryKeys.platformCapabilities });
+      toast.success("Email verified successfully");
+    },
+    onError: (err: { message?: string; code?: string; status?: number }) => {
+      if (err.status === 429 || err.code === "RATE_LIMITED") {
+        toast.error("Rate limited");
+      } else {
+        toast.error(err?.message || "Failed to verify email");
+      }
+    },
+  });
+}
+
+// ---- Developer API Keys v2 ----
+
+export function useDeveloperApiKeysV2() {
+  const auth = useAuth();
+  return useQuery({
+    queryKey: queryKeys.developerApiKeysV2,
+    queryFn: () => developerApiKeysV2Endpoints.list(),
+    ...defaultOptions,
+    enabled: auth.authenticated,
+  });
+}
+
+export function useCreateDeveloperApiKeyV2() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ payload, actionToken }: { payload: DeveloperApiKeyCreatePayload; actionToken?: string }) =>
+      developerApiKeysV2Endpoints.create(payload, actionToken),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.developerApiKeysV2 });
+    },
+    onError: (err: { message?: string; code?: string; status?: number }) => {
+      if (err.status === 429 || err.code === "RATE_LIMITED") {
+        toast.error("Rate limited");
+      } else if (err.status === 409 || err.code === "CONFLICT") {
+        toast.error("Conflict");
+      } else {
+        toast.error(err?.message || "Failed to create API Key");
+      }
+    },
+  });
+}
+
+export function useRotateDeveloperApiKeyV2() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, actionToken }: { id: string; actionToken: string }) =>
+      developerApiKeysV2Endpoints.rotate(id, actionToken),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.developerApiKeysV2 });
+    },
+    onError: (err: { message?: string; code?: string; status?: number }) => {
+      if (err.status === 429 || err.code === "RATE_LIMITED") {
+        toast.error("Rate limited");
+      } else {
+        toast.error(err?.message || "Failed to rotate API Key");
+      }
+    },
+  });
+}
+
+export function useRevokeDeveloperApiKeyV2() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      developerApiKeysV2Endpoints.revoke(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.developerApiKeysV2 });
+      toast.success("API Key revoked");
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(err?.message || "Failed to revoke API Key");
+    },
+  });
+}
+
+// ---- Merchant Webhooks v2 ----
+
+export function useMerchantWebhooks() {
+  return useQuery({
+    queryKey: queryKeys.merchantWebhooks,
+    queryFn: () => merchantWebhookEndpoints.list(),
+    ...defaultOptions,
+  });
+}
+
+export function useCreateMerchantWebhook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: MerchantWebhookCreatePayload) =>
+      merchantWebhookEndpoints.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.merchantWebhooks });
+      toast.success("Webhook created");
+    },
+    onError: (err: { message?: string; code?: string; status?: number }) => {
+      if (err.status === 429 || err.code === "RATE_LIMITED") {
+        toast.error("Rate limited");
+      } else if (err.status === 409 || err.code === "CONFLICT") {
+        toast.error("Conflict");
+      } else {
+        toast.error(err?.message || "Failed to create webhook");
+      }
+    },
+  });
+}
+
+export function useUpdateMerchantWebhook(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: MerchantWebhookUpdatePayload) =>
+      merchantWebhookEndpoints.update(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.merchantWebhooks });
+      toast.success("Webhook updated");
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(err?.message || "Failed to update webhook");
+    },
+  });
+}
+
+export function useDeleteMerchantWebhook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      merchantWebhookEndpoints.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.merchantWebhooks });
+      toast.success("Webhook deleted");
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(err?.message || "Failed to delete webhook");
+    },
+  });
+}
+
+export function useRotateMerchantWebhookSecret() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, actionToken }: { id: string; actionToken: string }) =>
+      merchantWebhookEndpoints.rotateSecret(id, actionToken),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.merchantWebhooks });
+    },
+    onError: (err: { message?: string; code?: string; status?: number }) => {
+      if (err.status === 429 || err.code === "RATE_LIMITED") {
+        toast.error("Rate limited");
+      } else {
+        toast.error(err?.message || "Failed to rotate webhook secret");
+      }
+    },
+  });
+}
+
+// ---- Provider Webhooks ----
+
+export function useProviderWebhooks() {
+  return useQuery({
+    queryKey: queryKeys.providerWebhooks,
+    queryFn: () => providerWebhookEndpoints.list(),
+    ...defaultOptions,
+  });
+}
+
+// ---- Banking ----
+
+export function useBankingCapabilities() {
+  const { data: caps } = usePlatformCapabilities();
+  return useQuery({
+    queryKey: queryKeys.bankingCapabilities,
+    queryFn: () => bankingEndpoints.capabilities(),
+    ...defaultOptions,
+    enabled: caps?.capabilities.banking === true,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useBankingAccounts() {
+  return useQuery({
+    queryKey: queryKeys.bankingAccounts,
+    queryFn: () => bankingEndpoints.accounts(),
+    ...defaultOptions,
+  });
+}
+
+export function useBankingAccount(id: string) {
+  return useQuery({
+    queryKey: queryKeys.bankingAccount(id),
+    queryFn: () => bankingEndpoints.account(id),
+    ...defaultOptions,
+    enabled: !!id,
+  });
+}
+
+export function useBankingAccountTransactions(id: string, filters?: DataTableFilters) {
+  return useQuery({
+    queryKey: queryKeys.bankingAccountTransactions(id, filters),
+    queryFn: () => bankingEndpoints.accountTransactions(id, filters),
+    ...defaultOptions,
+    enabled: !!id,
+  });
+}
+
+export function useBankingBeneficiaries() {
+  return useQuery({
+    queryKey: queryKeys.bankingBeneficiaries,
+    queryFn: () => bankingEndpoints.beneficiaries(),
+    ...defaultOptions,
+  });
+}
+
+export function useCreateBankingBeneficiary() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: BankingBeneficiaryCreatePayload) =>
+      bankingEndpoints.createBeneficiary(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.bankingBeneficiaries });
+      toast.success("Beneficiary created");
+    },
+    onError: (err: { message?: string; code?: string; status?: number }) => {
+      if (err.status === 429 || err.code === "RATE_LIMITED") {
+        toast.error("Rate limited");
+      } else if (err.status === 409 || err.code === "CONFLICT") {
+        toast.error("Conflict");
+      } else {
+        toast.error(err?.message || "Failed to create beneficiary");
+      }
+    },
+  });
+}
+
+export function useBankingTransfers() {
+  return useQuery({
+    queryKey: queryKeys.bankingTransfers,
+    queryFn: () => bankingEndpoints.transfers(),
+    ...defaultOptions,
+  });
+}
+
+export function useBankingTransfer(id: string) {
+  return useQuery({
+    queryKey: queryKeys.bankingTransfer(id),
+    queryFn: () => bankingEndpoints.transfer(id),
+    ...defaultOptions,
+    enabled: !!id,
+  });
+}
+
+export function useCreateBankingTransfer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ payload, idempotencyKey }: { payload: BankingTransferCreatePayload; idempotencyKey: string }) =>
+      bankingEndpoints.createTransfer(payload, idempotencyKey),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfers });
+      qc.invalidateQueries({ queryKey: queryKeys.bankingAccounts });
+    },
+    onError: (err: { message?: string; code?: string; status?: number }) => {
+      if (err.status === 429 || err.code === "RATE_LIMITED") {
+        toast.error("Rate limited");
+      } else if (err.status === 409 || err.code === "CONFLICT") {
+        toast.error("Possible duplicate transfer");
+      } else {
+        toast.error(err?.message || "Failed to create transfer");
+      }
+    },
+  });
+}
+
+export function useConfirmBankingTransfer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, actionToken }: { id: string; actionToken: string }) =>
+      bankingEndpoints.confirmTransfer(id, actionToken),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfers });
+      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfer(vars.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.bankingAccounts });
+    },
+    onError: (err: { message?: string; code?: string; status?: number }) => {
+      if (err.status === 429 || err.code === "RATE_LIMITED") {
+        toast.error("Rate limited");
+      } else {
+        toast.error(err?.message || "Failed to confirm transfer");
+      }
+    },
+  });
+}
+
+export function useCancelBankingTransfer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string }) =>
+      bankingEndpoints.cancelTransfer(id),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfers });
+      qc.invalidateQueries({ queryKey: queryKeys.bankingTransfer(vars.id) });
+      qc.invalidateQueries({ queryKey: queryKeys.bankingAccounts });
+      toast.success("Transfer cancelled");
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(err?.message || "Failed to cancel transfer");
+    },
+  });
+}
+
+export function useCreateBankingFxQuote() {
+  return useMutation({
+    mutationFn: (data: BankingFxQuotePayload) =>
+      bankingEndpoints.createFxQuote(data),
+  });
+}
+
+export function useBankingStatements() {
+  return useQuery({
+    queryKey: queryKeys.bankingStatements,
+    queryFn: () => bankingEndpoints.statements(),
     ...defaultOptions,
   });
 }

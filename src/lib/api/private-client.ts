@@ -64,8 +64,18 @@ function normalizeError(err: unknown): ApiError {
   if (axios.isAxiosError(err)) {
     if (err.code === "ECONNABORTED") return { message: "Request timed out.", code: err.code, status: 0 };
     if (err.code === "ERR_NETWORK") return { message: "Network error — could not reach the API.", code: err.code, status: 0 };
+    const httpStatus = err.response?.status;
     const data = err.response?.data as { message?: string; error?: { code?: string; message?: string }; code?: string } | undefined;
-    return { message: data?.error?.message || data?.message || err.message, code: data?.error?.code || data?.code, status: err.response?.status };
+    const message = data?.error?.message || data?.message || err.message;
+    const code = data?.error?.code || data?.code;
+    // Derive error code from HTTP status when not explicitly provided
+    const derivedCode = code ?? (
+      httpStatus === 409 ? "CONFLICT" :
+      httpStatus === 429 ? "RATE_LIMITED" :
+      httpStatus === 503 ? "SERVICE_UNAVAILABLE" :
+      undefined
+    );
+    return { message, code: derivedCode, status: httpStatus };
   }
   return { message: "Unexpected error", status: 500 };
 }
@@ -74,6 +84,21 @@ function normalizeError(err: unknown): ApiError {
 export async function privateRequest<T>(config: AxiosRequestConfig): Promise<T> {
   const res = await privateApi(config);
   return res.data as T;
+}
+
+/** Unwraps { success, data } envelope, optionally adding X-Security-Action header */
+export async function privateRequestWithSecurity<T>(
+  config: AxiosRequestConfig,
+  actionToken?: string,
+): Promise<T> {
+  const merged: AxiosRequestConfig = { ...config };
+  if (actionToken) {
+    merged.headers = {
+      ...config.headers,
+      "X-Security-Action": actionToken,
+    };
+  }
+  return privateRequestData<T>(merged);
 }
 
 /** Unwraps { success, data } envelope */

@@ -12,6 +12,7 @@ import {
 import {
   privateRequestData,
   privateRequest,
+  privateRequestWithSecurity,
 } from "./private-client";
 import type {
   User,
@@ -52,6 +53,36 @@ import type {
   AdminRejectPayload,
   WalletMovement,
 } from "@/types";
+
+import type {
+  SecurityPurposeInfo,
+  SecurityChallengeRequest,
+  SecurityChallengeResponse,
+  SecurityChallengeVerifyRequest,
+  SecurityChallengeVerifyResponse,
+} from "@/types/security";
+import type {
+  DeveloperApiKey,
+  DeveloperApiKeyCreatePayload,
+  DeveloperApiKeyCreateResponse,
+  MerchantWebhook,
+  MerchantWebhookCreatePayload,
+  MerchantWebhookCreateResponse,
+  MerchantWebhookUpdatePayload,
+  ProviderWebhook,
+} from "@/types/developer-v2";
+import type {
+  BankingCapabilities,
+  BankingAccount,
+  BankingAccountTransaction,
+  BankingBeneficiary,
+  BankingBeneficiaryCreatePayload,
+  BankingTransfer,
+  BankingTransferCreatePayload,
+  BankingFxQuote,
+  BankingFxQuotePayload,
+  BankingStatement,
+} from "@/types/banking";
 
 // ---- Auth (Public) ----
 
@@ -505,5 +536,173 @@ export const kycEndpoints = {
     privateRequestData<{ status: string; level: string; requiredDocuments: string[]; submittedAt?: string; verifiedAt?: string }>({
       method: "GET",
       url: "risk/kyc/status",
+    }),
+};
+// ---- Security Challenges (Private) ----
+
+export const securityEndpoints = {
+  purposes: () =>
+    privateRequestData<SecurityPurposeInfo[]>({
+      method: "GET",
+      url: "security/purposes",
+    }),
+  requestChallenge: (data: SecurityChallengeRequest) =>
+    privateRequestData<SecurityChallengeResponse>({
+      method: "POST",
+      url: "security/challenges/request",
+      data,
+    }),
+  verifyChallenge: (data: SecurityChallengeVerifyRequest) =>
+    privateRequestData<SecurityChallengeVerifyResponse>({
+      method: "POST",
+      url: "security/challenges/verify",
+      data,
+    }),
+  completeEmailVerification: (actionToken: string) =>
+    privateRequestWithSecurity<void>(
+      { method: "POST", url: "security/email/complete" },
+      actionToken,
+    ),
+};
+
+// ---- Developer API Keys v2 (Private) ----
+
+export const developerApiKeysV2Endpoints = {
+  list: () =>
+    privateRequestData<DeveloperApiKey[]>({
+      method: "GET",
+      url: "developer/api-keys",
+    }),
+  create: (data: DeveloperApiKeyCreatePayload, actionToken?: string) =>
+    privateRequestWithSecurity<DeveloperApiKeyCreateResponse>(
+      { method: "POST", url: "developer/api-keys", data },
+      actionToken,
+    ),
+  rotate: (id: string, actionToken: string) =>
+    privateRequestWithSecurity<DeveloperApiKeyCreateResponse>(
+      { method: "POST", url: `developer/api-keys/${id}/rotate` },
+      actionToken,
+    ),
+  revoke: (id: string) =>
+    privateRequestData<void>({
+      method: "POST",
+      url: `developer/api-keys/${id}/revoke`,
+    }),
+};
+
+// ---- Merchant Webhooks v2 (Private) ----
+
+export const merchantWebhookEndpoints = {
+  list: () =>
+    privateRequestData<MerchantWebhook[]>({
+      method: "GET",
+      url: "merchant/webhooks",
+    }),
+  create: (data: MerchantWebhookCreatePayload) =>
+    privateRequestData<MerchantWebhookCreateResponse>({
+      method: "POST",
+      url: "merchant/webhooks",
+      data,
+    }),
+  update: (id: string, data: MerchantWebhookUpdatePayload) =>
+    privateRequestData<MerchantWebhook>({
+      method: "PATCH",
+      url: `merchant/webhooks/${id}`,
+      data,
+    }),
+  delete: (id: string) =>
+    privateRequestData<void>({
+      method: "DELETE",
+      url: `merchant/webhooks/${id}`,
+    }),
+  rotateSecret: (id: string, actionToken: string) =>
+    privateRequestWithSecurity<{ secret: string }>(
+      { method: "POST", url: `merchant/webhooks/${id}/rotate-secret` },
+      actionToken,
+    ),
+};
+
+// ---- Provider Webhooks (Private) ----
+
+export const providerWebhookEndpoints = {
+  list: () =>
+    privateRequestData<ProviderWebhook[]>({
+      method: "GET",
+      url: "provider/webhooks",
+    }),
+};
+
+// ---- Banking (Private) ----
+
+export const bankingEndpoints = {
+  capabilities: () =>
+    privateRequestData<BankingCapabilities>({
+      method: "GET",
+      url: "banking/capabilities",
+    }),
+  accounts: () =>
+    privateRequestData<BankingAccount[]>({
+      method: "GET",
+      url: "banking/accounts",
+    }),
+  account: (id: string) =>
+    privateRequestData<BankingAccount>({
+      method: "GET",
+      url: `banking/accounts/${id}`,
+    }),
+  accountTransactions: (id: string, filters?: DataTableFilters) =>
+    privateRequestData<Paginated<BankingAccountTransaction>>({
+      method: "GET",
+      url: `banking/accounts/${id}/transactions`,
+      params: filters,
+    }),
+  beneficiaries: () =>
+    privateRequestData<BankingBeneficiary[]>({
+      method: "GET",
+      url: "banking/beneficiaries",
+    }),
+  createBeneficiary: (data: BankingBeneficiaryCreatePayload) =>
+    privateRequestData<BankingBeneficiary>({
+      method: "POST",
+      url: "banking/beneficiaries",
+      data,
+    }),
+  transfers: () =>
+    privateRequestData<BankingTransfer[]>({
+      method: "GET",
+      url: "banking/transfers",
+    }),
+  transfer: (id: string) =>
+    privateRequestData<BankingTransfer>({
+      method: "GET",
+      url: `banking/transfers/${id}`,
+    }),
+  createTransfer: (data: BankingTransferCreatePayload, idempotencyKey: string) =>
+    privateRequestData<BankingTransfer>({
+      method: "POST",
+      url: "banking/transfers",
+      data,
+      headers: { "Idempotency-Key": idempotencyKey },
+    }),
+  confirmTransfer: (id: string, actionToken: string) =>
+    privateRequestWithSecurity<BankingTransfer>(
+      { method: "POST", url: `banking/transfers/${id}/confirm` },
+      actionToken,
+    ),
+  cancelTransfer: (id: string) =>
+    privateRequestData<BankingTransfer>({
+      method: "POST",
+      url: `banking/transfers/${id}/cancel`,
+    }),
+  createFxQuote: (data: BankingFxQuotePayload) =>
+    privateRequestData<BankingFxQuote>({
+      method: "POST",
+      url: "banking/fx-quotes",
+      data,
+    }),
+  statements: () =>
+    privateRequestData<BankingStatement[]>({
+      method: "GET",
+      url: "banking/statements",
     }),
 };
