@@ -1,689 +1,552 @@
-# XPay.Expert — Enterprise Payments Infrastructure
-
 <div align="center">
 
-![XPay.Expert](public/logo.svg#gh-dark-mode-only)
+<img src="public/logo.svg" alt="XPAY.Expert" width="240" />
 
-**Plataforma de infraestrutura de pagamentos empresarial**
+<h1>XPAY.Expert — Merchant Dashboard</h1>
 
-[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss)](https://tailwindcss.com/)
-[![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-New_York-18181B?logo=shadcnui)](https://ui.shadcn.com/)
-[![PWA](https://img.shields.io/badge/PWA-Installable-4CAF50?logo=pwa)](#pwa--instalavel-no-celular-e-pc)
+<p><strong>Enterprise payment infrastructure. Accept cards, Pix, MBWay, and crypto with one unified API.</strong></p>
 
-[Demo Live](https://xpay.expert) · [API Docs](https://api.xpay.expert) · [Suporte](https://t.me/XPay_Manager)
+<p>
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/shadcn%2Fui-New%20York-18181B?style=flat-square" alt="shadcn/ui" />
+  <img src="https://img.shields.io/badge/License-Proprietary-E5E7EB?style=flat-square" alt="License" />
+</p>
 
 </div>
 
 ---
 
-## Índice
+## Table of Contents
 
-- [Visão Geral](#visao-geral)
-- [Arquitetura](#arquitetura)
-  - [Diagrama de Fluxo](#diagrama-de-fluxo)
-  - [Stack Técnico](#stack-tecnico)
-- [Funcionalidades](#funcionalidades)
-  - [Commerce](#commerce)
-  - [Banking (Private Beta)](#banking-private-beta)
-  - [Advisory](#advisory)
-  - [Admin Console](#admin-console)
-- [Fluxo API Completo](#fluxo-api-completo)
-  - [Convenção de Envelope](#convencao-de-envelope)
-  - [Autenticação](#autenticacao)
-  - [Endpoints Merchant](#endpoints-merchant)
-  - [Endpoints Admin](#endpoints-admin)
-- [PWA — Instalável no Celular e PC](#pwa--instalavel-no-celular-e-pc)
-- [i18n — Internacionalização](#i18n--internacionalizacao)
-- [Feature Flags](#feature-flags)
-- [Deploy na Vercel](#deploy-na-vercel)
-  - [Variáveis de Ambiente](#variaveis-de-ambiente)
-  - [Configuração do Projeto](#configuracao-do-projeto)
-  - [Pipeline CI/CD](#pipeline-cicd)
-- [Desenvolvimento Local](#desenvolvimento-local)
-- [Estrutura do Projeto](#estrutura-do-projeto)
-- [Segurança](#seguranca)
-- [Roadmap](#roadmap)
+- [Overview](#overview)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [API Integration](#api-integration)
+- [Security Model](#security-model)
+- [Key Features](#key-features)
+- [Development](#development)
+- [Project Structure](#project-structure)
+- [Internationalisation (i18n)](#internationalisation-i18n)
+- [PWA Support](#pwa-support)
+- [Deployment](#deployment)
+- [License](#license)
 
 ---
 
-## Visão Geral
+## Overview
 
-O **XPay.Expert** é uma aplicação frontend (SPA/SSR) que serve como painel de controlo para a plataforma de pagamentos empresarial XPay. A aplicação **não possui base de dados própria** — toda a persistência, lógica de negócio e dados são geridos pelo backend API em `https://api.xpay.expert/api/v1`.
+**XPAY.Expert** is a production-grade SaaS merchant dashboard for a multi-currency payment processing platform. It provides a comprehensive web interface for merchants to manage payments, wallets, settlements, payouts, risk monitoring, developer tools (API keys, webhooks), and banking services — all powered by a remote REST API at `https://api.xpay.expert/api/v1`.
 
-O frontend é responsável por:
+The dashboard is a **frontend-only** application with no direct database connections. All data flows through authenticated API calls to the XPAY.Expert backend.
 
-- **Autenticação** JWT com sessão em memória + Zustand persist
-- **Dashboard** com KPIs, gráficos, tabelas de transações, wallets, payouts
-- **Gestão de Payouts** com wizard de 5 passos e idempotência
-- **Admin Console** com capability probe e gestão operacional
-- **PWA** instalável em celular (Android/iOS) e PC (Chrome/Edge)
-- **i18n** em 4 idiomas (EN, PT-BR, FR, ES)
+### Design Principles
+
+- **Zero persisted secrets** — JWT, full API keys, OTP codes, and action tokens are held in memory only; never written to `localStorage` or cookies.
+- **Security-first routing** — route guards for merchant and admin areas; `401` triggers session invalidation, `403` preserves it.
+- **Server-driven capabilities** — feature availability (banking, advisory, etc.) is determined by backend `capabilities` flags, with local static fallbacks.
+- **Mobile-first responsive** — all views designed mobile-first with progressive enhancement for desktop.
 
 ---
 
-## Arquitetura
+## Tech Stack
 
-### Diagrama de Fluxo
+| Category | Technology | Version |
+|---|---|---|
+| **Framework** | Next.js (App Router) | 16.x |
+| **UI Runtime** | React | 19.x |
+| **Language** | TypeScript | 5.x |
+| **Styling** | Tailwind CSS | 4.x |
+| **Component Library** | shadcn/ui (New York style) | latest |
+| **Icons** | Lucide React | latest |
+| **Server State** | TanStack Query | 5.82+ |
+| **Client State** | Zustand | 5.x |
+| **HTTP Client** | Axios | 1.18+ |
+| **Form Validation** | React Hook Form + Zod | 7.x / 4.x |
+| **Animations** | Framer Motion | 12.x |
+| **Toast Notifications** | Sonner | 2.x |
+| **Theme** | next-themes | 0.4+ |
+| **Data Tables** | TanStack React Table | 8.x |
+| **Charts** | Recharts | 2.x |
+| **Date Utilities** | date-fns | 4.x |
+| **Drag & Drop** | dnd-kit | 6.x / 10.x |
+| **Rich Text / Markdown** | @mdxeditor/editor, react-markdown | 3.x / 10.x |
+| **Syntax Highlighting** | react-syntax-highlighter | 15.x |
+
+---
+
+## Architecture
+
+### App Router Structure
+
+The application uses Next.js 16 App Router with route groups for layout segregation:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        XPay.Expert Frontend                      │
-│                     (Next.js 16 + React 19)                     │
-│                                                                   │
-│  ┌──────────┐  ┌──────────────┐  ┌───────────────┐              │
-│  │  Landing  │  │   Auth       │  │  Dashboard     │              │
-│  │  Page     │  │  /login      │  │  Shell         │              │
-│  │  (SSR)    │  │  /register   │  │  (Protected)   │              │
-│  └──────────┘  └──────┬───────┘  └───────┬───────┘              │
-│                       │                  │                       │
-│               ┌───────▼───────┐  ┌───────▼────────┐             │
-│               │  Zustand Auth  │  │  Product Areas  │             │
-│               │  (persist)     │  │  ┌───────────┐ │             │
-│               └───────┬───────┘  │  │ Commerce  │ │             │
-│                       │          │  │ Banking   │ │             │
-│               ┌───────▼───────┐  │  │ Advisory  │ │             │
-│               │ Axios Clients │  │  │ Admin     │ │             │
-│               │ ┌───────────┐ │  │  └───────────┘ │             │
-│               │ │  public   │ │  └───────┬────────┘             │
-│               │ │  private  │ │          │                       │
-│               │ │  (JWT)    │ │  ┌───────▼────────┐             │
-│               │ └─────┬─────┘  │  React Query     │             │
-│               └───────┼───────┘  │  (TanStack v5)  │             │
-│                       │          └───────┬────────┘             │
-│                       │                  │                       │
-└───────────────────────┼──────────────────┼───────────────────────┘
-                        │                  │
-                   ┌────▼──────────────────▼────┐
-                   │    Backend API v1          │
-                   │  api.xpay.expert/api/v1    │
-                   │                             │
-                   │  ┌───────────────────────┐  │
-                   │  │  Auth (login/register)│  │
-                   │  │  Platform Bootstrap   │  │
-                   │  │  Wallets & Treasury   │  │
-                   │  │  Transactions         │  │
-                   │  │  Merchant Payouts     │  │
-                   │  │  Settlements          │  │
-                   │  │  Admin Operations     │  │
-                   │  │  KYC / Risk / Revenue │  │
-                   │  └───────────────────────┘  │
-                   └─────────────────────────────┘
+src/app/
+├── page.tsx                    # Landing page (public)
+├── layout.tsx                   # Root layout
+├── manifest.ts                  # PWA manifest
+├── (auth)/                      # Unauthenticated group
+│   ├── login/page.tsx           # Login
+│   └── register/page.tsx        # Registration
+├── (dashboard)/                 # Authenticated dashboard (sidebar, header, guards)
+│   ├── commerce/                # Overview, payments, transactions, settlements,
+│   │                             #   payouts, wallets, customers, stores, products,
+│   │                             #   invoices, subscriptions, payment-links
+│   ├── banking/                # Accounts, transfers, beneficiaries, fx,
+│   │                             #   cards, crypto, statements (gated by capabilities)
+│   ├── developers/             # Overview, api-keys (v2), webhooks, docs
+│   ├── advisory/               # Services, cases, documents, messages
+│   ├── admin/                   # Role-gated admin console
+│   │   ├── kyc/                # KYC review queue
+│   │   ├── risk/               # Risk management
+│   │   ├── revenue/            # Revenue analytics
+│   │   ├── commerce/            # Merchants, payouts, gateways, settlements
+│   │   └── system/             # Health, workers, logs, queues, feature-flags
+│   ├── settings/ / support/ / risk/ / insights/
+├── (protected)/                # commerce, developers, marketplace, money
+└── api/route.ts                # Next.js API routes
 ```
 
-### Stack Técnico
+### Component Layers
 
-| Camada | Tecnologia | Versão |
+```
+src/components/
+├── ui/                  # shadcn/ui primitives (50+ components)
+├── landing/             # Public landing page
+├── auth/                # Authentication screens (auth-screen.tsx)
+├── merchant/            # Dashboard widgets: analytics, payments, wallets, stores,
+│                         #   products, customers, invoices, subscriptions, fx,
+│                         #   treasury, risk, settings, payment-links, api-keys,
+│                         #   webhooks, support, developers (20 components)
+├── dashboard/           # Shell (sidebar/header), merchant-guard, admin-guard
+├── admin/               # Admin panels: dashboard, analytics, merchants, kyc,
+│                         #   risk, compliance, revenue, gateways, health, logs,
+│                         #   queues, workers, treasury, flags, support
+├── shared/              # payment-logos, badges, charts, language-switcher,
+│                         #   x-symbol, xpi-chat
+└── pwa-register.tsx     # PWA install prompt
+```
+
+### API Layer
+
+Centralised in `src/lib/api/` with distinct client configurations:
+
+| Client | File | Purpose |
 |---|---|---|
-| **Framework** | Next.js (App Router) | 16.1 |
-| **UI Runtime** | React | 19 |
-| **Linguagem** | TypeScript | 5 |
-| **Estilo** | Tailwind CSS | 4 |
-| **Componentes** | shadcn/ui (New York) | latest |
-| **Ícones** | Lucide React | latest |
-| **Estado Cliente** | Zustand | 5 |
-| **Estado Servidor** | TanStack React Query | 5.82 |
-| **HTTP Client** | Axios | 1.18 |
-| **Formulários** | React Hook Form + Zod | 7 / 4 |
-| **Tabelas** | TanStack React Table | 8 |
-| **Gráficos** | Recharts | 2.15 |
-| **Animações** | Framer Motion | 12 |
-| **Temas** | next-themes (dark-first) | 0.4 |
-| **Notificações** | Sonner | 2 |
-| **Deploy** | Vercel (standalone) | — |
+| **public-client.ts** | Unauthenticated Axios instance | Login, registration, public endpoints |
+| **private-client.ts** | JWT-authenticated Axios instance | All authenticated merchant/admin endpoints |
+| **client.ts** | Legacy client | Backward compatibility |
+| **endpoints.ts** | Typed endpoint functions | All API calls organised by domain |
+| **xpApi.ts** | Extended API utilities | Convenience wrappers |
+| **capabilities-api.ts** | Capabilities detection | Dynamic feature flag resolution |
+| **mock.ts** | Mock data generators | Development & demo data |
 
-> **Nota:** Não existe base de dados local. O Prisma/SQLite presente no repositório é scaffold não utilizado — toda a dados flui via API REST.
+**Private client interceptor behaviour:**
+
+```typescript
+// JWT injected from in-memory reference — never persisted to localStorage
+privateApi.interceptors.request.use((config) => {
+  if (_accessToken) config.headers.set("Authorization", `Bearer ${_accessToken}`);
+  return config;
+});
+// 401 → clear session, redirect to /login
+// 403 → preserve session (access denied, not a session issue)
+```
+
+### State Management
+
+All stores use **Zustand 5** with optional `persist` middleware:
+
+| Store | File | Purpose |
+|---|---|---|
+| `useAuth` | `stores/auth.ts` | Authentication, JWT management, session lifecycle |
+| `usePlatform` | `stores/platform.ts` | Platform bootstrap data, capabilities |
+| `useWorkspace` | `stores/workspace.ts` | Workspace/merchant context switching |
+| `useUI` | `stores/ui.ts` | UI state (sidebar, modals) |
+| `useAdminStore` | `stores/admin.ts` | Admin capability flags |
+
+The auth store hydrates from storage on app load, validates via `GET /auth/me`, and handles reconnection.
+
+### Configuration
+
+```
+src/config/
+├── index.ts           # Navigation structure, product area definitions, Lucide icons
+├── feature-flags.ts   # Static fallback flags (superseded by server capabilities)
+└── contacts.ts        # Contact information and support channels
+```
+
+### Hooks
+
+- `use-queries.ts` — TanStack Query hooks for all data-fetching operations
+- `queries.ts` — Query key definitions and invalidation helpers
+- `use-mobile.ts` — Mobile breakpoint detection (responsive sidebar)
+- `use-toast.ts` — Toast notification hook
+
+### Providers
+
+Root providers composed in `src/providers/app-providers.tsx`: **QueryClientProvider** (TanStack Query), **ThemeProvider** (next-themes), and **i18n auto-detect**.
 
 ---
 
-## Funcionalidades
+## API Integration
 
-### Commerce
+### Backend API
 
-| Funcionalidade | Rota | Status | Descrição |
-|---|---|---|---|
-| Dashboard | `/commerce/overview` | **Operacional** | KPIs, gráficos, atividade recente via `platform/bootstrap` |
-| Pagamentos | `/commerce/payments` | **Operacional** | Lista de transações com filtros e paginação |
-| Carteiras | `/commerce/wallets` | **Operacional** | Saldos multi-moeda via `GET /wallets` |
-| Settlements | `/commerce/settlements` | **Operacional** | Liquidações com filtros |
-| Payouts | `/commerce/payouts` | **Operacional** | Lista + Detalhe + Criação (wizard 5 passos) |
-| Novo Payout | `/commerce/payouts/new` | **Operacional** | Wizard: Origem → Destino → Validação → Confirmação → Criado |
-| Lojas | `/commerce/stores` | **Operacional** | CRUD de lojas |
-| Produtos | `/commerce/products` | **Operacional** | Gestão de produtos |
-| Clientes | `/commerce/customers` | **Operacional** | Lista de clientes |
-| Subscrições | `/commerce/subscriptions` | **Operacional** | Gestão de subscrições |
-| Links de Pagamento | `/commerce/payment-links` | **Operacional** | Gestão de payment links |
-| Faturas | `/commerce/invoices` | **Operacional** | Gestão de faturas |
-| Transacções | `/commerce/transactions` | **Operacional** | Lista detalhada de transações |
+```
+Base URL: https://api.xpay.expert/api/v1
+```
 
-### Banking (Private Beta)
+### API Clients
 
-| Funcionalidade | Rota | Status |
+**Public Client** — No auth header. Login, register, public endpoints.
+
+**Private Client** — Injects `Authorization: Bearer <token>` from an in-memory variable. `401` clears session and redirects. `403` preserves session. Network errors preserve session.
+
+**Security-Aware Client** — Extends private client with `X-Security-Action` header for sensitive operations.
+
+### Response Envelope
+
+All authenticated endpoints return a standardised envelope:
+
+```json
+{ "success": true, "data": { ... }, "error": { "code": "...", "message": "..." } }
+```
+
+`privateRequestData<T>()` unwraps the envelope automatically. If `success` is `false`, it throws a normalised `ApiError`.
+
+### Endpoint Catalogue
+
+#### Authentication & Platform
+
+| Method | Endpoint | Description |
 |---|---|---|
-| Dashboard Banking | `/banking` | **Feature Flag OFF** |
-| Contas | `/banking/accounts` | **Feature Flag OFF** |
-| Cartões | `/banking/cards` | **Feature Flag OFF** |
-| Crypto | `/banking/crypto` | **Feature Flag OFF** |
-| FX | `/banking/fx` | **Feature Flag OFF** |
-| Transferências | `/banking/transfers` | **Feature Flag OFF** |
+| `POST` | `auth/login` | Email/password login → JWT + merchant profile |
+| `POST` | `auth/register` | Registration → JWT + merchant profile |
+| `GET` | `auth/me` | Validate & refresh session |
+| `POST` | `auth/logout` | Invalidate server-side session |
+| `GET` | `platform/bootstrap` | Capabilities, feature flags, workspace config |
+| `GET/PATCH` | `merchant/profile` | Merchant profile read/update |
 
-### Advisory
+#### Commerce & Payments
 
-| Funcionalidade | Rota | Status |
+| Method | Endpoint | Description |
 |---|---|---|
-| Dashboard Advisory | `/advisory` | **Operacional** (empty state) |
-| Casos | `/advisory/cases` | **Feature Flag OFF** |
-| Documentos | `/advisory/documents` | **Feature Flag OFF** |
-| Mensagens | `/advisory/messages` | **Feature Flag OFF** |
-| Serviços | `/advisory/services` | **Operacional** (empty state) |
+| `GET/POST` | `merchant/stores`, `merchant/stores/:id` | Store CRUD |
+| `GET` | `transactions`, `transactions/:id`, `transactions/stats` | Transactions + statistics |
+| `GET` | `analytics/overview` | Dashboard KPIs & charts |
+| `GET` | `wallets`, `wallets/movements` | Wallets + movement history |
+| `GET` | `risk/profile`, `risk/kyc/status` | Risk profile + KYC status |
+| `GET` | `treasury/overview` | Treasury overview |
+| `GET` | `customers` | Customer directory |
+| `GET/POST/DELETE` | `products` | Product catalogue CRUD |
+| `GET` | `payment-links`, `invoices`, `subscriptions` | Read-only listings |
+| `GET` | `merchant/settlements` | Settlement batches |
+| `GET` | `merchant/payouts/options` | Payout methods |
+| `POST` | `merchant/payouts/validate` | Validate payout payload |
+| `POST` | `merchant/payouts` | Create payout (`Idempotency-Key` header) |
+| `GET` | `merchant/payouts`, `merchant/payouts/:id` | List + detail |
+| `POST` | `merchant/payouts/:id/cancel` | Cancel payout |
+
+#### Developer & Webhooks
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `developer/api-keys` | List keys (never includes `fullKey`) |
+| `POST` | `developer/api-keys` | Create key → `fullKey` returned **once** |
+| `POST` | `developer/api-keys/:id/rotate` | Rotate key → new `fullKey` returned **once** |
+| `POST` | `developer/api-keys/:id/revoke` | Revoke key permanently |
+| `GET/POST/PATCH/DELETE` | `webhooks` | Legacy webhook CRUD |
+| `GET/POST/PATCH/DELETE` | `merchant/webhooks` | v2 webhooks + delivery health |
+| `POST` | `merchant/webhooks/:id/rotate-secret` | Rotate secret (security action) |
+| `GET` | `provider/webhooks` | Provider webhooks (read-only) |
+
+#### Banking (Private Beta)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `banking/capabilities` | Feature capabilities gate |
+| `GET` | `banking/accounts`, `.../transactions` | Accounts + history |
+| `GET/POST` | `banking/beneficiaries` | Beneficiary management |
+| `GET/POST` | `banking/transfers` | Transfer list + create |
+| `POST` | `banking/transfers/:id/confirm` | Confirm (requires security action) |
+| `POST` | `banking/fx-quotes` | FX rate quotes |
+| `GET` | `banking/statements` | Account statements |
+
+#### Security & Admin
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `security/purposes` | Available challenge purposes |
+| `POST` | `security/challenges/request` | Request 6-digit email OTP |
+| `POST` | `security/challenges/verify` | Verify OTP → `actionToken` |
+| `POST` | `security/email/complete` | Complete email verification |
+| `GET` | `admin/merchants`, `admin/kyc` | Merchant directory + KYC queue |
+| `GET` | `admin/health`, `admin/revenue` | System health + revenue |
+| `GET/POST` | `admin/merchant-payouts`, `.../:id/*` | Payout management |
+| `GET` | `admin/settlements` | Platform-wide settlements |
+
+---
+
+## Security Model
+
+### Authentication Flow
+
+1. User submits credentials to `POST /auth/login`
+2. Server returns `{ token, merchant }` — JWT + merchant profile
+3. Token stored **in memory only** (Zustand + Axios interceptor variable)
+4. On refresh: Zustand `persist` rehydrates from localStorage → validates via `GET /auth/me`
+5. Invalid tokens cleared immediately on any `401`
+
+### JWT Lifecycle
+
+| Event | Behaviour |
+|---|---|
+| **Login** | Token in memory + Zustand (persisted to localStorage) |
+| **Page refresh** | Rehydrated → validated via `GET /auth/me` |
+| **401** | In-memory token nulled, Zustand cleared, redirect to `/login` |
+| **403** | Session preserved (access denied, not a session issue) |
+| **Logout** | Server invalidation + client memory/storage clear |
+| **Network error** | Session preserved — retry available |
+
+> **No refresh tokens.** A `401` always requires re-authentication.
+
+### Error Handling
+
+All Axios errors normalised into `ApiError`:
+
+```typescript
+interface ApiError { message: string; code?: string; status?: number; }
+```
+
+| HTTP | Derived Code | UI |
+|---|---|---|
+| `401` | — | Clear session, redirect to login |
+| `403` | — | Preserve session, "Access denied" |
+| `409` | `CONFLICT` | "Resource conflict" |
+| `429` | `RATE_LIMITED` | "Too many requests" |
+| `503` | `SERVICE_UNAVAILABLE` | "Service temporarily unavailable" |
+
+### API Keys v2
+
+Strict **reveal-once** policy:
+- `GET /developer/api-keys` — metadata only (prefix, last 4 chars). `fullKey` never included.
+- `POST /developer/api-keys` — `fullKey` returned once. Never persisted.
+- `POST /developer/api-keys/:id/rotate` — old key invalidated, new `fullKey` returned once.
+- `POST /developer/api-keys/:id/revoke` — permanent disable.
+
+### Webhooks
+
+- **Legacy**: CRUD at `/webhooks`
+- **Merchant v2**: CRUD at `/merchant/webhooks` with delivery health metrics (`last24h`, `avgLatencyMs`) and secret rotation via security action
+- **Provider v2**: Read-only at `/provider/webhooks` — full CRUD not yet available
+
+### Security Challenges
+
+Sensitive operations require a completed challenge flow:
+1. `GET /security/purposes` → 2. `POST /security/challenges/request` (6-digit email OTP) → 3. `POST /security/challenges/verify` → 4. `actionToken` returned
+5. Token passed as `X-Security-Action` header. Held **in memory only** — never persisted.
+
+Applies to: API key creation/rotation, transfer confirmation, email verification, webhook secret rotation.
+
+---
+
+## Key Features
+
+### Merchant Dashboard
+- **Real-time analytics** — KPI cards, volume charts, transaction breakdowns
+- **Payment management** — search, filtering, and detail views
+- **Multi-wallet support** — balance tracking and movement history
+- **Payout engine** — validation, FX quotes, idempotent creation, admin approval
+- **Multi-store management** — per-store configurations
+- **Products, invoices, subscriptions, payment links**
+
+### Developer Tools
+- **API Keys v2** — live/test environments, scope management, reveal-once security
+- **Webhook management** — delivery health monitoring, secret rotation
+- **SDK docs** — syntax-highlighted snippets (cURL, JS, Python)
+- **In-app code examples** for rapid integration
 
 ### Admin Console
+- **Merchant directory**, **KYC review queue**, **payout management**
+- **System monitoring** — health, workers, queues, logs
+- **Revenue analytics**, **feature flag management**
 
-| Funcionalidade | Rota | Status | Descrição |
-|---|---|---|---|
-| Admin Dashboard | `/admin` | **Operacional** | Visão geral da plataforma |
-| Merchants | `/admin/commerce/merchants` | **Operacional** | Gestão de merchants |
-| Payouts (Admin) | `/admin/commerce/payouts` | **Operacional** | Operações: aprovar, rejeitar, processar, marcar pago |
-| Payout Detail | `/admin/commerce/payouts/[id]` | **Operacional** | Detalhe + ações administrativas |
-| Gateways | `/admin/commerce/gateways` | **Operacional** | Gestão de gateways de pagamento |
-| Settlements | `/admin/commerce/settlements` | **Operacional** | Liquidações globais |
-| KYC Queue | `/admin/kyc` | **Operacional** | Fila de revisão KYC |
-| Revenue | `/admin/revenue` | **Operacional** | Receitas da plataforma |
-| Risk | `/admin/risk` | **Operacional** | Análise de risco |
-| System Health | `/admin/system/health` | **Operacional** | Saúde do sistema |
-| Workers | `/admin/system/workers` | **Operacional** | Monitorização de workers |
-| Queues | `/admin/system/queues` | **Operacional** | Monitorização de filas |
-| Logs | `/admin/system/logs` | **Operacional** | Logs do sistema |
-| Feature Flags | `/admin/system/feature-flags` | **Operacional** | Gestão de feature flags |
+### Banking (Private Beta)
+Gated by `capabilities.banking`. Accounts, transfers, beneficiaries, FX quotes, statements. Cards and crypto coming soon.
+
+### UX & Infrastructure
+- **Dark/light mode** (system detection + manual toggle)
+- **PWA** — installable with app shortcuts
+- **i18n** — 4 languages, automatic browser detection
+- **Responsive** — mobile-first with collapsible sidebar
+- **Route guards** — merchant and admin access control
+- **Toasts, skeletons, ARIA, keyboard navigation**
 
 ---
 
-## Fluxo API Completo
+## Development
 
-### Convenção de Envelope
+### Prerequisites
 
-Todas as respostas da API seguem o envelope padrão v3.1:
+- **Node.js** 18+ or **Bun** latest
+- **npm** or **bun** package manager
 
-```typescript
-// Sucesso
-{
-  "success": true,
-  "data": T,          // Payload tipado
-  "meta"?: {          // Opcional, para listas paginadas
-    "total": number,
-    "page": number,
-    "limit": number,
-    "pages": number
-  }
-}
+### Environment Variables
 
-// Erro
-{
-  "success": false,
-  "error": {
-    "code": string,     // ex: "UNAUTHORIZED", "VALIDATION_ERROR"
-    "message": string   // Mensagem legível
-  }
-}
-```
+Create `.env.local`:
 
-### Autenticação
-
-```
-POST /auth/login          → { token, merchant }
-POST /auth/register       → { token, merchant }
-GET  /auth/me             → User (valida sessão)
-POST /auth/logout         → void (invalida sessão backend)
-```
-
-**Fluxo:**
-
-1. Utilizador faz login → recebe `token` JWT
-2. Token guardado em Zustand (`useAuth`) e injetado no `privateApi` via interceptor
-3. Token **não** é persistido em `localStorage` diretamente — fica em memória via `setPrivateAccessToken()`
-4. O Zustand persist apenas metadados (sem o token)
-5. Em 401: token limpo, sessão destruída, redirect para `/login`
-6. Em 403: **não** limpa sessão — mostra "Access denied"
-7. **Não existem refresh tokens** — sessão expira após ~8h
-
-### Endpoints Merchant
-
-| Domain | Método | Endpoint | Descrição |
-|---|---|---|---|
-| **Platform** | GET | `/platform/bootstrap` | Dados completos do dashboard (KPIs, alertas, ações rápidas) |
-| **Profile** | GET | `/merchant/profile` | Perfil do merchant |
-| **Profile** | PATCH | `/merchant/profile` | Atualizar perfil |
-| **Stores** | GET | `/merchant/stores` | Lista de lojas |
-| **Stores** | POST | `/merchant/stores` | Criar loja |
-| **Stores** | GET | `/merchant/stores/:id` | Detalhe da loja |
-| **Stores** | PATCH | `/merchant/stores/:id` | Atualizar loja |
-| **Wallets** | GET | `/wallets` | Carteiras e saldos |
-| **Transactions** | GET | `/transactions` | Lista paginada de transações |
-| **Transactions** | GET | `/transactions/stats` | Estatísticas de transações |
-| **Analytics** | GET | `/analytics/overview` | Overview analítico |
-| **Risk** | GET | `/risk/profile` | Perfil de risco |
-| **Treasury** | GET | `/treasury/overview` | Overview de tesouraria |
-| **Customers** | GET | `/customers` | Lista de clientes |
-| **Products** | GET | `/products` | Lista de produtos |
-| **Products** | POST | `/products` | Criar produto |
-| **Products** | DELETE | `/products/:id` | Eliminar produto |
-| **Payment Links** | GET | `/payment-links` | Lista de payment links |
-| **Invoices** | GET | `/invoices` | Lista de faturas |
-| **Subscriptions** | GET | `/subscriptions` | Lista de subscrições |
-| **Settlements** | GET | `/merchant/settlements` | Liquidações do merchant |
-| **API Keys** | GET | `/api-keys` | Lista de chaves API |
-| **API Keys** | POST | `/api-keys` | Criar chave API |
-| **API Keys** | DELETE | `/api-keys/:id` | Revogar chave API |
-| **Webhooks** | GET | `/webhooks` | Lista de webhooks |
-| **Webhooks** | POST | `/webhooks` | Criar webhook |
-| **Webhooks** | PATCH | `/webhooks/:id` | Atualizar webhook |
-| **Webhooks** | DELETE | `/webhooks/:id` | Eliminar webhook |
-
-### Endpoints Merchant Payouts
-
-| Método | Endpoint | Header | Descrição |
-|---|---|---|---|
-| GET | `/merchant/payouts/options` | — | Opções disponíveis (métodos, moedas, limites) |
-| POST | `/merchant/payouts/validate` | — | Validação pré-criação (FX, limites) |
-| POST | `/merchant/payouts` | `Idempotency-Key` | Criar payout (com idempotência) |
-| GET | `/merchant/payouts` | — | Lista paginada de payouts |
-| GET | `/merchant/payouts/:id` | — | Detalhe do payout |
-| POST | `/merchant/payouts/:id/cancel` | — | Cancelar payout |
-
-**Métodos de Payout suportados:**
-
-| Método | Descrição | Campos Destino |
-|---|---|---|
-| `SEPA_INSTANT` | Transferência SEPA Instant | IBAN, BIC, Bank Name, Country |
-| `PIX` | Pix (Brasil) | Key Type (CPF/CNPJ/EMAIL/PHONE/EVP), Key Value, Tax ID |
-| `USDT_TRC20` | USDT na rede TRC20 | Wallet Address |
-| `USDT_ERC20` | USDT na rede ERC20 | Wallet Address |
-| `MANUAL` | Transferência manual | Instructions |
-
-**Wizard de Criação (5 passos):**
-
-```
-Passo 1: Origem    → Selecionar wallet e moeda de origem
-Passo 2: Destino   → Formulário dinâmico por método (SEPA/PIX/USDT/MANUAL)
-Passo 3: Validação → POST /validate → mostra FX, taxas, valor final
-Passo 4: Confirmação → Resumo completo, botão "Confirmar Payout"
-Passo 5: Criado    → Sucesso com ticket code, redireciona para /commerce/payouts/[id]
-```
-
-> **Idempotência:** Um UUID é gerado no início do wizard e mantido entre retries. O header `Idempotency-Key` é enviado na criação do payout.
-
-### Endpoints Admin
-
-| Método | Endpoint | Descrição |
-|---|---|---|
-| **Capability Probe** | | |
-| GET | `/admin/merchant-payouts?limit=1` | 200 = admin, 403 = não admin, 401 = sessão inválida |
-| **Payouts** | | |
-| GET | `/admin/merchant-payouts` | Lista todos os payouts (todos merchants) |
-| GET | `/admin/merchant-payouts/:id` | Detalhe do payout |
-| POST | `/admin/merchant-payouts/:id/fx-quote` | Aplicar cotação FX |
-| POST | `/admin/merchant-payouts/:id/approve` | Aprovar payout |
-| POST | `/admin/merchant-payouts/:id/processing` | Marcar como processando |
-| POST | `/admin/merchant-payouts/:id/paid` | Marcar como pago |
-| POST | `/admin/merchant-payouts/:id/reject` | Rejeitar payout |
-| **Settlements** | | |
-| GET | `/admin/settlements` | Liquidações globais |
-| **Merchants** | | |
-| GET | `/admin/merchants` | Lista de merchants |
-| **KYC** | | |
-| GET | `/admin/kyc` | Fila de revisão KYC |
-| **System** | | |
-| GET | `/admin/health` | Saúde do sistema |
-| GET | `/admin/revenue` | Receitas da plataforma |
-
----
-
-## PWA — Instalável no Celular e PC
-
-A aplicação está configurada como **Progressive Web App** e pode ser instalada em:
-
-- **Android** (Chrome) — prompt automático de instalação
-- **iOS** (Safari) — botão de partilha → "Adicionar ao Ecrã Inicial"
-- **PC** (Chrome/Edge) — ícone de instalação na barra de endereço
-- **PC** (PWA standalone) — abre como janela dedicada sem barra de navegador
-
-### Configuração PWA
-
-| Item | Ficheiro | Descrição |
-|---|---|---|
-| Manifest | `src/app/manifest.ts` | Metadados, ícones, shortcuts |
-| Service Worker | `public/sw.js` | Cache offline, precache de assets estáticos |
-| SW Registration | `src/lib/pwa/register-sw.ts` | Registo condicional do service worker |
-| Ícones | `public/icon-{192,512}.png` | Ícones padrão PNG |
-| Ícones Maskable | `public/icon-maskable-{192,512}.png` | Ícones adaptáveis para Android |
-| Favicon SVG | `public/favicon.svg` | Ícone vetorial para browser |
-| Apple Touch | `public/apple-touch-icon.png` | Ícone para iOS |
-| OG Image | `public/og-image.png` | Imagem de partilha em redes sociais |
-
-### Shortcuts PWA
-
-| Atalho | Rota |
-|---|---|
-| Dashboard | `/commerce/overview` |
-| Payments | `/commerce/payments` |
-| Wallets | `/commerce/wallets` |
-
-### Service Worker Strategy
-
-- **Precache:** Assets estáticos (JS, CSS, fonts, ícones) no primeiro load
-- **Network-first:** Requisições à API (sempre online, mostra erro se offline)
-- **Stale-while-revalidate:** Páginas estáticas (landing, login)
-- **Cache max age:** 24h para assets estáticos, sem cache para API
-
----
-
-## i18n — Internacionalização
-
-O sistema de i18n é **client-side** com 4 idiomas:
-
-| Código | Idioma | Ficheiro |
-|---|---|---|
-| `en` | English | `src/lib/i18n/locales.ts` |
-| `pt-BR` | Português (Brasil) | `src/lib/i18n/locales.ts` |
-| `fr` | Français | `src/lib/i18n/locales.ts` |
-| `es` | Español | `src/lib/i18n/locales.ts` |
-
-**Detecção automática:** (1) preferência persistida → (2) língua do browser → (3) timezone
-
-**Uso nos componentes:**
-
-```typescript
-import { useT, useLocale } from "@/lib/i18n";
-
-function MyComponent() {
-  const t = useT();
-  const locale = useLocale();
-  return <h1>{t("nav.dashboard")}</h1>; // → "Dashboard" / "Painel" / "Tableau de bord"
-}
-```
-
-**Switcher:** Disponível no Dashboard Shell (ícone de globo no topo da sidebar).
-
----
-
-## Feature Flags
-
-Controlo centralizado em `src/config/feature-flags.ts`:
-
-```typescript
-const features = {
-  commerce: true,           // ✅ Ativo
-  merchantPayouts: true,    // ✅ Ativo
-  settlements: true,        // ✅ Ativo
-  adminConsole: true,       // ✅ Ativo
-  banking: false,           // 🔒 Private Beta
-  advisory: true,           // ✅ Ativo (área geral)
-  advisoryCases: false,     // 🔒 Em desenvolvimento
-  advisoryDocuments: false, // 🔒 Em desenvolvimento
-  advisoryMessages: false,  // 🔒 Em desenvolvimento
-  discordNotifications: false,
-  emailNotifications: false,
-  whatsappNotifications: false,
-};
-```
-
-**Uso:**
-
-```typescript
-import { isFeatureEnabled } from "@/config/feature-flags";
-
-if (isFeatureEnabled("banking")) {
-  // Mostrar funcionalidade
-}
-```
-
----
-
-## Deploy na Vercel
-
-### Variáveis de Ambiente
-
-Crie um ficheiro `.env.local` (não commitar) ou configure na Vercel Dashboard:
-
-```bash
-# Obrigatório — URL da API Backend
+```env
+# API base URL (required)
 NEXT_PUBLIC_API_URL=https://api.xpay.expert/api/v1
-
-# Opcional — URL do site (para metadados/SEO)
-NEXT_PUBLIC_SITE_URL=https://xpay.expert
-
-# Opcional — Prisma/SQLite (não utilizado pela app, pode omitir)
-# DATABASE_URL=file:./db/dev.db
 ```
 
-| Variável | Obrigatória | Default | Descrição |
-|---|---|---|---|
-| `NEXT_PUBLIC_API_URL` | **Sim** | `https://api.xpay.expert/api/v1` | URL base da API backend |
-| `NEXT_PUBLIC_SITE_URL` | Não | `https://xpay.expert` | URL pública do site (meta, sitemap, OG) |
-| `DATABASE_URL` | Não | — | Não utilizado pela app em produção |
+| Variable | Description | Default |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | Backend API base URL | `https://api.xpay.expert/api/v1` |
 
-### Configuração do Projeto
-
-**`next.config.ts`:**
-
-```typescript
-{
-  output: "standalone",              // Otimizado para Vercel/Docker
-  typescript: { ignoreBuildErrors: true },
-  reactStrictMode: false,
-  allowedDevOrigins: ["*.space-z.ai", "*.chat.z.ai"],
-}
-```
-
-**`vercel.json` (não necessário):** O Next.js 16 com `output: "standalone"` é automaticamente detetado e otimizado pela Vercel.
-
-### Pipeline CI/CD
-
-```
-Push para main
-  → Vercel deteta mudanças
-  → Build automático (bun install && next build)
-  → Deploy para produção
-  → URL: https://xpay.expert
-```
-
-**Passos manuais na Vercel Dashboard:**
-
-1. **Import Project** → ligar ao GitHub `nexflowx-hub/xpay.expert`
-2. **Framework Preset:** Next.js (auto-detected)
-3. **Build Command:** `npx next build` (Vercel usa isto por default)
-4. **Environment Variables:** adicionar `NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_SITE_URL`
-5. **Deploy**
-
-> **Nota:** A Vercel utiliza `npm` por default. Se preferir `bun`, ative "Bun" nas Settings do projeto ou use o Vercel Build API v2.
-
----
-
-## Desenvolvimento Local
+### Getting Started
 
 ```bash
-# Clonar
-git clone https://github.com/nexflowx-hub/xpay.expert.git
-cd xpay.expert
-
-# Instalar dependências
+# Install dependencies
 bun install
 
-# Variáveis de ambiente (criar .env.local)
-echo "NEXT_PUBLIC_API_URL=https://api.xpay.expert/api/v1" > .env.local
-
-# Iniciar em desenvolvimento
+# Start development server (port 3000)
 bun run dev
-# → http://localhost:3000
-
-# Verificar qualidade do código
-bun run lint
 ```
 
-**Scripts disponíveis:**
+### Lint & Typecheck
 
-| Script | Comando | Descrição |
-|---|---|---|
-| `dev` | `next dev -p 3000` | Servidor de desenvolvimento |
-| `build` | `next build` + copy static | Build de produção (standalone) |
-| `start` | `NODE_ENV=production bun .next/standalone/server.js` | Servidor de produção |
-| `lint` | `eslint .` | Verificação de qualidade |
+```bash
+# ESLint
+npm run lint
 
----
+# TypeScript type checking
+npx tsc --noEmit
 
-## Estrutura do Projeto
-
-```
-xpay.expert/
-├── public/
-│   ├── favicon.svg, favicon-32.png
-│   ├── logo.svg, logo.png, logo-1024.png, logo-symbol.svg
-│   ├── og-image.png                          # Open Graph image
-│   ├── apple-touch-icon.png                  # iOS PWA icon
-│   ├── icon-192.png, icon-512.png            # PWA icons
-│   ├── icon-maskable-192.png, -512.png       # Android maskable icons
-│   ├── robots.txt                            # Robots.txt estático
-│   ├── sw.js                                 # Service Worker (PWA)
-│   └── payment-logos/                        # SVGs: visa, mastercard, pix, etc.
-├── prisma/
-│   └── schema.prisma                         # Schema scaffold (não utilizado)
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx                        # Root layout + metadata + SEO
-│   │   ├── page.tsx                          # Landing page (SSR)
-│   │   ├── globals.css                       # Estilos globais Tailwind
-│   │   ├── manifest.ts                       # PWA manifest
-│   │   ├── sitemap.ts                        # Sitemap dinâmico
-│   │   ├── robots.ts                         # Robots.txt dinâmico
-│   │   ├── error.tsx                         # Error boundary
-│   │   ├── not-found.tsx                     # 404 page
-│   │   ├── (auth)/                           # Login + Register
-│   │   ├── (dashboard)/                      # App protegida (MerchantGuard)
-│   │   │   ├── layout.tsx                    # DashboardShell wrapper
-│   │   │   ├── admin/                        # Admin (AdminGuard)
-│   │   │   ├── advisory/                     # Advisory area
-│   │   │   ├── banking/                      # Banking area (feature flag)
-│   │   │   ├── commerce/                     # Commerce (main)
-│   │   │   │   ├── overview/
-│   │   │   │   ├── payments/
-│   │   │   │   ├── wallets/
-│   │   │   │   ├── settlements/
-│   │   │   │   ├── payouts/                  # List + New (wizard) + [id]
-│   │   │   │   ├── stores/
-│   │   │   │   ├── products/
-│   │   │   │   ├── customers/
-│   │   │   │   ├── subscriptions/
-│   │   │   │   ├── payment-links/
-│   │   │   │   ├── invoices/
-│   │   │   │   └── transactions/
-│   │   │   ├── developers/
-│   │   │   ├── insights/
-│   │   │   ├── risk/
-│   │   │   ├── settings/
-│   │   │   └── support/
-│   │   └── (protected)/                      # Rotas legacy com redirect
-│   ├── components/
-│   │   ├── ui/                               # ~45 componentes shadcn/ui
-│   │   ├── admin/                            # Componentes admin (13)
-│   │   ├── auth/                             # Auth screen
-│   │   ├── dashboard/                        # Shell, Guards
-│   │   ├── landing/                          # Landing page
-│   │   ├── merchant/                         # Componentes merchant (17)
-│   │   └── shared/                           # StatCard, PageHeader, etc.
-│   ├── config/
-│   │   ├── index.ts                          # Nav, product areas, currencies
-│   │   ├── feature-flags.ts                  # Feature flags centralizados
-│   │   └── contacts.ts                       # Telegram, Discord, WhatsApp
-│   ├── hooks/
-│   │   ├── use-queries.ts                    # TanStack Query hooks (principal)
-│   │   ├── queries.ts                        # Legacy hooks (deprecated)
-│   │   ├── use-toast.ts                      # Toast hook
-│   │   └── use-mobile.ts                     # Mobile detection hook
-│   ├── lib/
-│   │   ├── api/
-│   │   │   ├── public-client.ts              # Axios sem JWT
-│   │   │   ├── private-client.ts             # Axios com JWT interceptor
-│   │   │   └── endpoints.ts                  # Funções de endpoint (40+)
-│   │   ├── i18n/
-│   │   │   ├── index.ts                      # useI18n store, useT(), useLocale()
-│   │   │   └── locales.ts                    # Dicionários EN/PT-BR/FR/ES
-│   │   ├── pwa/
-│   │   │   └── register-sw.ts                # Service worker registration
-│   │   ├── storage/xp-storage.ts             # Centralized localStorage
-│   │   ├── db.ts                             # Prisma client (não utilizado)
-│   │   └── utils.ts                          # cn(), formatCurrency(), formatDate()
-│   ├── providers/app-providers.tsx           # QueryClient + ThemeProvider
-│   ├── stores/
-│   │   ├── auth.ts                           # Auth state + JWT management
-│   │   ├── platform.ts                       # Bootstrap data
-│   │   ├── workspace.ts                      # Store/workspace selector
-│   │   ├── ui.ts                             # UI state (sidebar, command palette)
-│   │   └── admin.ts                          # Admin capability probe
-│   └── types/index.ts                        # Todos os tipos (~818 linhas)
-├── .env.example                              # Template de variáveis de ambiente
-├── next.config.ts                            # Configuração Next.js
-├── package.json                              # Dependências e scripts
-├── tsconfig.json                             # Configuração TypeScript
-├── components.json                           # shadcn/ui config
-├── eslint.config.mjs                         # ESLint config
-└── README.md                                 # Este ficheiro
+# Production build
+npm run build
 ```
 
 ---
 
-## Segurança
+## Project Structure
 
-| Regra | Implementação |
+```
+src/
+├── app/                           # App Router pages & layouts
+│   ├── (auth)/                    # Login, register
+│   ├── (dashboard)/               # All authenticated pages
+│   │   ├── commerce/              # Payments, wallets, payouts, stores, products...
+│   │   ├── banking/               # Accounts, transfers, FX, beneficiaries...
+│   │   ├── developers/            # API keys v2, webhooks, docs
+│   │   ├── advisory/              # Services, cases, documents, messages
+│   │   └── admin/                  # KYC, risk, revenue, commerce, system
+│   ├── (protected)/               # commerce, developers, marketplace, money
+│   └── api/                       # Next.js API routes
+│
+├── components/
+│   ├── ui/                        # shadcn/ui primitives (50+)
+│   ├── landing/                   # Public landing page
+│   ├── auth/                      # Authentication screens
+│   ├── merchant/                  # Dashboard widgets (20+)
+│   ├── dashboard/                 # Shell, guards
+│   ├── admin/                     # Admin panels (15+)
+│   ├── shared/                    # Reusable components
+│   └── pwa-register.tsx           # PWA install prompt
+│
+├── lib/
+│   ├── api/                       # client, private-client, public-client,
+│   │                               #   endpoints, xpApi, capabilities-api, mock
+│   ├── i18n/                      # index.ts (store, useT), locales.ts (dictionaries)
+│   ├── pwa/register-sw.ts         # Service worker registration
+│   ├── storage/xp-storage.ts       # Storage management & migration
+│   ├── sdk-snippets.ts            # SDK code templates
+│   └── utils.ts                   # General utilities
+│
+├── types/                         # index, security, developer-v2, banking
+├── stores/                        # auth, platform, workspace, ui, admin
+├── hooks/                         # use-queries, queries, use-mobile, use-toast
+├── config/                        # Navigation, feature-flags, contacts
+└── providers/app-providers.tsx    # Root providers
+```
+
+---
+
+## Internationalisation (i18n)
+
+4 languages with client-side locale switching:
+
+| Code | Language |
 |---|---|
-| **JWT em memória** | Token nunca vai para localStorage — apenas referência in-memory via `setPrivateAccessToken()` |
-| **Sem refresh tokens** | Em 401, sessão é destruída e redirect para login |
-| **403 preserva sessão** | "Access denied" não limpa o token |
-| **Sem dados financeiros em persist** | Saldo/balances nunca são guardados em Zustand persist ou localStorage |
-| **Sem optimistic updates** | Balances só atualizam após confirmação do servidor |
-| **Sem console.log de tokens** | Interceptors não logam headers de autorização |
-| **Idempotência em payouts** | UUID gerado no wizard, mantido em retries via header `Idempotency-Key` |
-| **Admin capability probe** | Permissões verificadas via API (`GET /admin/merchant-payouts?limit=1`) |
-| **Input sanitização** | React Hook Form + Zod para validação de formulários |
-| **Timeout de API** | 15 segundos em todas as requisições |
+| `en` | English (default) |
+| `pt-BR` | Portuguese (Brazil) |
+| `fr` | French |
+| `es` | Spanish |
+
+- **Store**: Zustand + `persist` (key: `xp-locale`)
+- **Detection**: Browser language → timezone → `en`
+- **Usage**: `useT()` hook returns `t(key)` for active locale
+- **Dictionaries**: `src/lib/i18n/locales.ts`
+- **Component**: `src/components/shared/language-switcher.tsx`
+
+```typescript
+import { useT } from "@/lib/i18n";
+function MyComponent() {
+  const t = useT();
+  return <h1>{t("nav.dashboard")}</h1>;
+}
+```
+
+Persisted user choices are never overridden by auto-detection.
 
 ---
 
-## Roadmap
+## PWA Support
 
-### Em Desenvolvimento 🔧
-- **Banking Area** — Contas, cartões, FX, crypto, transferências
-- **Advisory Cases** — Gestão de casos de consultoria
-- **Advisory Documents** — Partilha de documentos
-- **Advisory Messages** — Sistema de mensagens
-- **Notificações** — Discord, Email, WhatsApp
+Fully installable Progressive Web App:
 
-### Planeado 📋
-- **Offline PWA** — Cache de páginas para uso offline limitado
-- **WebAuthn** — Autenticação por chave de segurança (FIDO2)
-- **Dark/Light Toggle** — Alternância manual de tema
-- **Real-time Updates** — WebSocket para transações em tempo real
-- **Export CSV/PDF** — Exportação de relatórios
-- **Command Palette** — Atalhos de teclado para navegação rápida
+- **Manifest**: `src/app/manifest.ts` — name, icons, theme (`#0B1220`), shortcuts
+- **Service Worker**: `public/sw.js` — caching & offline support
+- **Shortcuts**: Dashboard, Payments, Wallets, New Payout
+- **Install Prompt**: `src/components/pwa-register.tsx`
+- **Display**: `standalone` mode
 
 ---
 
-## Suporte
+## Deployment
 
-| Canal | Contacto |
+### Build
+
+Next.js `standalone` output for minimal deployment:
+
+```bash
+npm run build
+# Output: .next/standalone/ (self-contained server)
+```
+
+Build script copies `public/` assets and `.next/static/` into the standalone directory.
+
+### Environments
+
+| Environment | `NEXT_PUBLIC_API_URL` |
 |---|---|
-| Telegram (Geral) | [@XPay_Expert](https://t.me/XPay_Expert) |
-| Telegram (Suporte) | [@XPay_Manager](https://t.me/XPay_Manager) |
-| Discord | [XPay Community](https://discord.gg/xpay) |
-| WhatsApp | [Suporte WhatsApp](https://wa.me/xpay) |
-| Email | [suporte@xpay.expert](mailto:suporte@xpay.expert) |
+| Production | `https://api.xpay.expert/api/v1` |
+| Staging | `https://staging-api.xpay.expert/api/v1` |
+| Development | `https://api.xpay.expert/api/v1` |
+
+### Checklist
+
+1. Set `NEXT_PUBLIC_API_URL` for target environment
+2. Ensure API is accessible from deployment origin (CORS)
+3. Copy `public/` assets with standalone output
+4. Run: `NODE_ENV=production node .next/standalone/server.js`
 
 ---
 
-<div align="center">
+## License
 
-**XPay.Expert** — Enterprise Payments Infrastructure
-
-&copy; 2025 XPay Expert, Inc. Todos os direitos reservados.
-
-</div>
+Proprietary. All rights reserved. This software is the confidential and proprietary information of XPAY.Expert. Unauthorized copying, distribution, or modification is strictly prohibited.
