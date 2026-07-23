@@ -10,9 +10,7 @@ import { useWorkspaceStore } from "@/stores/workspace";
 
 const LandingPage = dynamic(
   () =>
-    import("@/components/landing/landing-page").then((m) => ({
-      default: m.LandingPage || (m.default as React.ComponentType),
-    })),
+    import("@/components/landing/landing-page"),
   {
     loading: () => <LandingFallback />,
     ssr: false,

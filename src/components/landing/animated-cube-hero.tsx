@@ -56,7 +56,7 @@ function Cubelet({
     () => cubeletColor(position[0], position[1], position[2]).clone(),
     [position],
   );
-  const target = React.useMemo(() => new THREE.Vector3(), []);
+  const targetRef = React.useRef(new THREE.Vector3());
 
   useFrame(({ clock }, delta) => {
     if (!mesh.current) return;
@@ -65,6 +65,8 @@ function Cubelet({
     const explode = assemblyEnvelope(elapsed + index * 0.022);
     const wave = Math.sin(elapsed * 1.45 + index * 0.73);
     const drift = Math.sin(elapsed * 0.82 + index * 1.91) * 0.035;
+
+    const target = targetRef.current;
 
     target
       .copy(base)

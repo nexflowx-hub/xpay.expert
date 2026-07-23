@@ -23,6 +23,7 @@ import {
   GlowCard,
   GradientBorder,
 } from "@/components/shared";
+import { AnimatedCubeHero } from "@/components/landing/animated-cube-hero";
 import { toast } from "sonner";
 import {
   Menu,
@@ -43,7 +44,6 @@ import {
   Github,
   Linkedin,
   Twitter,
-  Terminal,
   Activity,
   ArrowUpRight,
   CreditCard,
@@ -258,324 +258,6 @@ function NavBar() {
 }
 
 // ----------------------------------------------------------------------------
-// Animated World Map (SVG dotted continents + flowing payment lines)
-// ----------------------------------------------------------------------------
-
-type Hub = { id: string; x: number; y: number; label: string };
-
-const HUBS: Hub[] = [
-  { id: "ny", x: 175, y: 150, label: "New York" },
-  { id: "sp", x: 245, y: 285, label: "São Paulo" },
-  { id: "li", x: 392, y: 138, label: "Lisbon" },
-  { id: "lo", x: 418, y: 112, label: "London" },
-  { id: "be", x: 438, y: 100, label: "Berlin" },
-  { id: "du", x: 525, y: 180, label: "Dubai" },
-  { id: "sg", x: 615, y: 232, label: "Singapore" },
-  { id: "tk", x: 685, y: 148, label: "Tokyo" },
-  { id: "sy", x: 700, y: 300, label: "Sydney" },
-];
-
-const LINES: [string, string][] = [
-  ["ny", "lo"],
-  ["ny", "sp"],
-  ["sp", "li"],
-  ["lo", "du"],
-  ["du", "sg"],
-  ["sg", "sy"],
-  ["lo", "tk"],
-  ["tk", "sg"],
-  ["li", "be"],
-  ["ny", "sg"],
-];
-
-const CONTINENTS = [
-  { cx: 150, cy: 135, rx: 78, ry: 58 }, // North America
-  { cx: 228, cy: 275, rx: 46, ry: 52 }, // South America
-  { cx: 420, cy: 110, rx: 50, ry: 32 }, // Europe
-  { cx: 432, cy: 215, rx: 52, ry: 64 }, // Africa
-  { cx: 565, cy: 155, rx: 95, ry: 56 }, // Asia
-  { cx: 662, cy: 295, rx: 42, ry: 26 }, // Oceania
-];
-
-function quadPath(a: Hub, b: Hub) {
-  const mx = (a.x + b.x) / 2;
-  const my = (a.y + b.y) / 2;
-  // perpendicular lift for an arc
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const lift = Math.min(70, len * 0.32);
-  const cx = mx + (-dy / len) * lift;
-  const cy = my + (dx / len) * lift - 12;
-  return `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
-}
-
-function WorldMap() {
-  const dots = React.useMemo(() => {
-    const out: { x: number; y: number; strong: boolean }[] = [];
-    const step = 16;
-    for (let x = 12; x < 800; x += step) {
-      for (let y = 12; y < 380; y += step) {
-        let strong = false;
-        for (const c of CONTINENTS) {
-          const u = (x - c.cx) / c.rx;
-          const v = (y - c.cy) / c.ry;
-          if (u * u + v * v <= 1) {
-            strong = true;
-            break;
-          }
-        }
-        if (strong) out.push({ x, y, strong: true });
-      }
-    }
-    return out;
-  }, []);
-
-  return (
-    <svg
-      viewBox="0 0 800 380"
-      className="h-full w-full"
-      preserveAspectRatio="xMidYMid meet"
-      aria-hidden
-    >
-      <defs>
-        <radialGradient id="mapGlow" cx="50%" cy="40%" r="60%">
-          <stop offset="0%" stopColor="oklch(0.62 0.21 258)" stopOpacity="0.35" />
-          <stop offset="60%" stopColor="oklch(0.62 0.21 258)" stopOpacity="0.05" />
-          <stop offset="100%" stopColor="transparent" />
-        </radialGradient>
-        <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="oklch(0.62 0.21 258)" stopOpacity="0" />
-          <stop offset="50%" stopColor="oklch(0.68 0.19 258)" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="oklch(0.62 0.21 258)" stopOpacity="0" />
-        </linearGradient>
-        <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="2.4" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-
-      {/* background glow */}
-      <rect x="0" y="0" width="800" height="380" fill="url(#mapGlow)" />
-
-      {/* dotted continents */}
-      <g>
-        {dots.map((d, i) => (
-          <circle
-            key={i}
-            cx={d.x}
-            cy={d.y}
-            r={1.25}
-            fill="oklch(0.78 0.10 258)"
-            opacity={0.55}
-          />
-        ))}
-      </g>
-
-      {/* payment lines: static base + animated flowing dashes */}
-      <g>
-        {LINES.map(([from, to], i) => {
-          const a = HUBS.find((h) => h.id === from)!;
-          const b = HUBS.find((h) => h.id === to)!;
-          const d = quadPath(a, b);
-          return (
-            <g key={i}>
-              <path d={d} fill="none" stroke="oklch(0.62 0.21 258)" strokeWidth={1} opacity={0.18} />
-              <path
-                d={d}
-                fill="none"
-                stroke="url(#lineGrad)"
-                strokeWidth={1.6}
-                className="animate-dash"
-                filter="url(#softGlow)"
-              />
-            </g>
-          );
-        })}
-      </g>
-
-      {/* hubs */}
-      <g>
-        {HUBS.map((h) => (
-          <g key={h.id}>
-            <circle cx={h.x} cy={h.y} r={6} fill="oklch(0.62 0.21 258)" opacity={0.18} />
-            <circle cx={h.x} cy={h.y} r={3} fill="oklch(0.78 0.16 258)" filter="url(#softGlow)">
-              <animate
-                attributeName="opacity"
-                values="1;0.4;1"
-                dur="2.4s"
-                repeatCount="indefinite"
-              />
-            </circle>
-            <circle cx={h.x} cy={h.y} r={1.4} fill="#fff" />
-          </g>
-        ))}
-      </g>
-    </svg>
-  );
-}
-
-// Floating currency badges around the map
-function CurrencyFloats() {
-  const items = [
-    { sym: "$", x: "20%", y: "32%", delay: 0 },
-    { sym: "€", x: "50%", y: "18%", delay: 0.6 },
-    { sym: "R$", x: "30%", y: "70%", delay: 1.2 },
-    { sym: "₿", x: "76%", y: "60%", delay: 1.8 },
-  ];
-  return (
-    <>
-      {items.map((it, i) => (
-        <motion.div
-          key={i}
-          className="pointer-events-none absolute grid size-9 place-items-center rounded-full border border-primary/40 bg-background/70 text-sm font-semibold text-primary backdrop-blur-md"
-          style={{ left: it.x, top: it.y }}
-          animate={{ y: [0, -10, 0], opacity: [0.7, 1, 0.7] }}
-          transition={{
-            duration: 4.5,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: it.delay,
-          }}
-        >
-          {it.sym}
-        </motion.div>
-      ))}
-    </>
-  );
-}
-
-// Live "payment received" toast overlay cycling messages
-const LIVE_PAYMENTS = [
-  { amount: 4200, currency: "EUR", method: "Pix", from: "Lisbon, PT" },
-  { amount: 1299, currency: "USD", method: "Visa", from: "New York, US" },
-  { amount: 8900, currency: "BRL", method: "Pix", from: "São Paulo, BR" },
-  { amount: 159, currency: "GBP", method: "Apple Pay", from: "London, UK" },
-  { amount: 0.012, currency: "BTC", method: "Crypto", from: "Singapore, SG" },
-];
-
-function LivePaymentToast() {
-  const t = useT();
-  const [idx, setIdx] = React.useState(0);
-  React.useEffect(() => {
-    const timer = setInterval(() => setIdx((i) => (i + 1) % LIVE_PAYMENTS.length), 2600);
-    return () => clearInterval(timer);
-  }, []);
-  const p = LIVE_PAYMENTS[idx];
-  return (
-    <motion.div
-      key={idx}
-      initial={{ opacity: 0, y: 8, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="absolute left-4 top-4 z-20 flex items-center gap-3 rounded-xl border border-border/70 bg-background/80 px-3.5 py-2.5 backdrop-blur-xl"
-    >
-      <span className="relative flex size-2.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-        <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
-      </span>
-      <div className="flex flex-col">
-        <span className="text-[11px] text-muted-foreground">{t("hero.paymentReceived")}</span>
-        <span className="text-sm font-semibold text-foreground">
-          {formatCurrency(p.amount, p.currency)}{" "}
-          <span className="text-muted-foreground">· {p.method}</span>
-        </span>
-      </div>
-      <Separator orientation="vertical" className="h-8" />
-      <span className="text-[11px] text-muted-foreground">{p.from}</span>
-    </motion.div>
-  );
-}
-
-// ----------------------------------------------------------------------------
-// Code block (terminal style) with language tabs + copy
-// ----------------------------------------------------------------------------
-
-function CodeBlock({
-  autoCycle = false,
-  cycleInterval = 3500,
-}: {
-  autoCycle?: boolean;
-  cycleInterval?: number;
-}) {
-  const [lang, setLang] = React.useState<keyof typeof sdkSnippets>("node");
-  const copy = useCopy();
-
-  React.useEffect(() => {
-    if (!autoCycle) return;
-    const t = setInterval(() => {
-      setLang((cur) => {
-        const i = LANGS.findIndex((l) => l.id === cur);
-        return LANGS[(i + 1) % LANGS.length].id;
-      });
-    }, cycleInterval);
-    return () => clearInterval(t);
-  }, [autoCycle, cycleInterval]);
-
-  const code = sdkSnippets[lang];
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-border/60 bg-[oklch(0.13_0.012_255)] shadow-2xl">
-      {/* window chrome */}
-      <div className="flex items-center gap-2 border-b border-border/50 px-4 py-3">
-        <div className="flex gap-1.5">
-          <span className="size-3 rounded-full bg-rose-500/80" />
-          <span className="size-3 rounded-full bg-amber-400/80" />
-          <span className="size-3 rounded-full bg-emerald-500/80" />
-        </div>
-        <span className="ml-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Terminal className="size-3.5" />
-          create-payment.{lang === "curl" ? "sh" : lang}
-        </span>
-        <div className="ml-auto">
-          <Tabs value={lang} onValueChange={(v) => setLang(v as typeof lang)}>
-            <TabsList className="h-8 bg-muted/40 p-0.5">
-              {LANGS.map((l) => (
-                <TabsTrigger
-                  key={l.id}
-                  value={l.id}
-                  className="h-7 px-2.5 text-xs data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
-                >
-                  {l.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
-      </div>
-
-      {/* code */}
-      <div className="relative">
-        <pre className="scrollbar-thin max-h-[320px] overflow-auto px-5 py-4 font-mono text-[12.5px] leading-relaxed text-foreground/90">
-          <AnimatePresence mode="wait">
-            <motion.code
-              key={lang}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2 }}
-              className="block whitespace-pre"
-            >
-              {code}
-            </motion.code>
-          </AnimatePresence>
-        </pre>
-        <button
-          onClick={() => copy(code, "Copied to clipboard")}
-          className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/70 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur transition-colors hover:text-foreground"
-        >
-          <Copy className="size-3.5" />
-          Copy
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------------
 // Section: Hero
 // ----------------------------------------------------------------------------
 
@@ -606,7 +288,7 @@ function Hero() {
         ))}
       </div>
 
-      <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-12 px-5 pb-16 pt-16 sm:px-8 lg:grid-cols-2 lg:gap-8 lg:pb-24 lg:pt-24">
+      <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-12 px-5 pb-16 pt-16 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(480px,1.1fr)] lg:items-center lg:gap-10 lg:pb-24 lg:pt-24">
         {/* Left: copy */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -662,42 +344,25 @@ function Hero() {
           </div>
         </motion.div>
 
-        {/* Right: animated world map */}
+        {/* Right: animated modular cube */}
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
-          className="relative"
+          transition={{
+            duration: 0.8,
+            ease: [0.16, 1, 0.3, 1],
+            delay: 0.15,
+          }}
+          className="relative flex min-w-0 items-center"
         >
-          <GradientBorder className="relative h-[360px] overflow-hidden rounded-2xl bg-card/40 backdrop-blur-xl sm:h-[440px]">
-            <div className="absolute inset-0">
-              <WorldMap />
-            </div>
-            <CurrencyFloats />
-            <LivePaymentToast />
-
-            {/* corner caption */}
-            <div className="absolute bottom-3 right-4 z-20 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                <span className="relative inline-flex size-2 rounded-full bg-primary" />
-              </span>
-              Live payment rail · 47,210 tx/min
-            </div>
-          </GradientBorder>
-
-          {/* code block below hero */}
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.35 }}
-            className="mt-5"
-          >
-            <p className="mb-2 text-xs font-medium text-muted-foreground">
-              {t("hero.codeTitle")}
-            </p>
-            <CodeBlock autoCycle />
-          </motion.div>
+          <AnimatedCubeHero
+            className="
+              h-[420px] w-full
+              sm:h-[500px]
+              lg:h-[560px]
+              xl:h-[620px]
+            "
+          />
         </motion.div>
       </div>
     </section>
