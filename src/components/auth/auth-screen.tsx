@@ -201,6 +201,7 @@ export function AuthScreen() {
   async function onForgot(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const email = (formData.get("email") as string) || "";
     const token = (formData.get("token") as string) || "";
     const password = (formData.get("password") as string) || "";
     setLoading(true);

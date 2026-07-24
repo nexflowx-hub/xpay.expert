@@ -27,12 +27,12 @@ export default function Error({ error, reset }: { error: Error; reset: () => voi
           {/* Login — clears auth and redirects */}
           <Button variant="outline" onClick={() => {
             clearAuthenticationStorage();
-            window.location.replace("/?view=login");
+            window.location.replace("/login");
           }}>Voltar ao login</Button>
           {/* Full recovery — clears all auth storage and reloads */}
           <Button variant="ghost" onClick={() => {
             clearAuthenticationStorage();
-            window.location.replace("/?view=login&reason=recovery");
+            window.location.replace("/login?reason=recovery");
           }}>Reiniciar sessão</Button>
         </div>
       </div>

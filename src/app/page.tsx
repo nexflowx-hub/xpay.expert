@@ -7,6 +7,7 @@ import { useAuth } from "@/stores/auth";
 import { usePlatformBootstrap } from "@/hooks/use-queries";
 import { usePlatformStore } from "@/stores/platform";
 import { useWorkspaceStore } from "@/stores/workspace";
+import { HeroErrorBoundary } from "@/components/shared/hero-error-boundary";
 
 const LandingPage = dynamic(
   () =>
@@ -99,6 +100,19 @@ export default function RootPage() {
     );
   }
 
-  // Not authenticated — show landing page
-  return <LandingPage />;
+  // Not authenticated — show landing page (isolated from global error boundary)
+  return (
+    <HeroErrorBoundary
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-12 w-12 animate-pulse rounded-xl bg-muted" />
+            <div className="h-4 w-48 animate-pulse rounded bg-muted" />
+          </div>
+        </div>
+      }
+    >
+      <LandingPage />
+    </HeroErrorBoundary>
+  );
 }

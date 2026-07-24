@@ -73,7 +73,7 @@ const CONNECTIONS: [number, number][] = [
   [0, 1], [1, 2], [0, 3], [4, 1], [5, 2],
   [6, 1], [7, 4], [0, 8], [9, 5], [10, 5],
   [11, 2], [12, 0], [13, 4], [14, 6], [15, 2],
-  [16, 10], [17, 4], [18, 10], [19, 1], [20, 9],
+  [16, 10], [17, 4], [18, 10], [19, 1], [0, 10],
   [3, 13], [8, 11], [7, 0], [5, 16], [10, 1],
 ];
 
@@ -121,7 +121,7 @@ function createArcGeometry(
 
 const GLOBE_RADIUS = 1.8;
 const CYAN = new THREE.Color("#00e5ff");
-const CYAN_DIM = new THREE.Color("#006680");
+
 const CYAN_GLOW = new THREE.Color("#00ffcc");
 
 function GlobeSphere() {
