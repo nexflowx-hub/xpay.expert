@@ -12,12 +12,19 @@ import {
   Inbox,
   ArrowUpRight,
   Info,
+  Banknote,
+  Clock,
+  Lock,
+  ShieldAlert,
+  CalendarClock,
+  Wallet,
 } from "lucide-react";
-import { useMerchantPayouts, usePlatformBootstrap } from "@/hooks/use-queries";
+import { useMerchantPayouts, usePlatformBootstrap, useMerchantPayoutSummary } from "@/hooks/use-queries";
 import {
   PageHeader,
   ErrorState,
   EmptyState,
+  StatCard,
   fadeUp,
 } from "@/components/shared";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
@@ -184,6 +191,8 @@ export default function PayoutsListPage() {
   const merchantPayoutsCap = capabilities.merchantPayouts;
   const payoutEnabled = merchantPayoutsCap === true || merchantPayoutsCap === "enabled";
 
+  const { data: payoutSummary, isLoading: summaryLoading } = useMerchantPayoutSummary();
+
   const [statusFilter, setStatusFilter] = React.useState<string>("");
   const [methodFilter, setMethodFilter] = React.useState<string>("");
   const [currencyFilter, setCurrencyFilter] = React.useState<string>("");
@@ -275,13 +284,68 @@ export default function PayoutsListPage() {
         }
       />
 
-      {/* Capability Alert */}
+      {/* Payout Summary Panel */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {summaryLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))
+        ) : payoutSummary ? (
+          <>
+            <StatCard
+              label="Total ja pago"
+              value={payoutSummary.totalPaid}
+              icon={Banknote}
+              accent="green"
+              format={(n) => formatCurrency(n, payoutSummary.totalPaidCurrency, { compact: true })}
+            />
+            <StatCard
+              label="Payouts em analise"
+              value={payoutSummary.inReviewCount}
+              icon={Clock}
+              accent="amber"
+              format={(n) => n.toString()}
+            />
+            <StatCard
+              label="Payouts reservados"
+              value={payoutSummary.reservedCount}
+              icon={Lock}
+              accent="rose"
+              format={(n) => n.toString()}
+            />
+            <StatCard
+              label="Total reservado"
+              value={payoutSummary.totalReserved}
+              icon={ShieldAlert}
+              accent="amber"
+              format={(n) => formatCurrency(n, payoutSummary.totalPaidCurrency, { compact: true })}
+            />
+            <StatCard
+              label="Proxima liberacao prevista"
+              value={0}
+              icon={CalendarClock}
+              accent="blue"
+              format={() => payoutSummary.nextScheduledDate ? formatDate(payoutSummary.nextScheduledDate) : "—"}
+            />
+            <StatCard
+              label="Total de payouts pagos"
+              value={payoutSummary.totalPaidOutCount}
+              icon={Wallet}
+              accent="violet"
+              format={(n) => n.toString()}
+            />
+          </>
+        ) : null}
+      </div>
+
+      {/* Capability Alert — Security: show history, disable creation */}
       {!payoutEnabled && (
         <Alert className="border-amber-500/40 bg-amber-500/5 backdrop-blur-xl">
-          <Info className="h-4 w-4 text-amber-400" />
+          <ShieldAlert className="h-4 w-4 text-amber-400" />
           <AlertTitle className="text-xs font-medium">Payouts capability</AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
             Pedidos de payout serao ativados apos a reconciliacao da Wallet.
+            Pode consultar o historico e previsoes, mas a criacao de novos payouts esta desativada.
           </AlertDescription>
         </Alert>
       )}
@@ -478,10 +542,12 @@ export default function PayoutsListPage() {
           description={
             statusFilter || methodFilter || currencyFilter
               ? "Try adjusting your filters to see more results."
-              : "Create your first payout to send funds to a beneficiary."
+              : payoutEnabled
+                ? "Create your first payout to send funds to a beneficiary."
+                : "Payouts are not yet enabled for your account. History and forecasts will appear here."
           }
           action={
-            !statusFilter && !methodFilter && !currencyFilter ? (
+            !statusFilter && !methodFilter && !currencyFilter && payoutEnabled ? (
               <Button
                 size="sm"
                 className="gap-1.5"

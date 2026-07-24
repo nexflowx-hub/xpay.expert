@@ -646,6 +646,7 @@ export interface Settlement {
   merchantName: string;
   storeId?: string;
   storeName?: string;
+  storeCode?: string;
   provider: string;
   transactionCount: number;
   gross: number;
@@ -654,9 +655,16 @@ export interface Settlement {
   xpayFee: number;
   merchantNet: number;
   providerAvailableDate: string;
-  status: "pending_provider" | "pending_review" | "held" | "ready" | "released" | "pending" | "available" | "processing";
+  status: "pending_provider" | "pending_review" | "held" | "scheduled" | "partially_released" | "ready" | "released" | "cancelled" | "pending" | "available" | "processing";
   createdAt: string;
   releasedAt?: string;
+  // Partial release support
+  scheduledAmount?: number;
+  releasedAmount?: number;
+  remainingAmount?: number;
+  scheduledFor?: string;
+  feeBasis?: string;
+  feeClassification?: string;
 }
 
 export interface SettlementListResponse {
@@ -885,6 +893,16 @@ export interface PlatformCapabilities {
 }
 
 // ---- Raw settlement batch from backend (snake_case) ----
+export type SettlementBatchStatus =
+  | "pending_provider"
+  | "pending_review"
+  | "held"
+  | "scheduled"
+  | "partially_released"
+  | "ready"
+  | "released"
+  | "cancelled";
+
 export interface RawSettlementBatch {
   id: string;
   merchant_id: string;
@@ -901,10 +919,19 @@ export interface RawSettlementBatch {
   provider_fee: number;
   platform_fee: number;
   merchant_net: number;
+  // Partial release fields
+  scheduled_amount?: number;
+  released_amount?: number;
+  remaining_amount?: number;
+  scheduled_for?: string;
+  released_at?: string;
+  // Standard fields
   provider_available_at: string;
   ready_at?: string;
-  released_at?: string;
   created_at: string;
+  fee_basis?: string;
+  fee_classification?: string;
+  fee_reconciliation_status?: string;
 }
 
 // ---- Settlement overview from GET settlements/overview ----
@@ -915,8 +942,49 @@ export interface SettlementOverview {
   totalMerchantNet: number;
   pendingReviewCount: number;
   heldCount: number;
+  scheduledCount?: number;
+  partiallyReleasedCount?: number;
+  readyCount?: number;
   releasedCount: number;
+  cancelledCount?: number;
+  totalScheduled?: number;
+  totalReleased?: number;
+  totalRemaining?: number;
+  nextScheduledDate?: string;
+  nextScheduledAmount?: number;
   currency: CurrencyCode;
+  feeBasis?: string;
+  feeClassification?: string;
+}
+
+// ---- Release Calendar Entry ----
+export interface ReleaseCalendarEntry {
+  id: string;
+  settlementBatchId: string;
+  storeName: string;
+  storeCode?: string;
+ batchReference: string;
+  scheduledAmount: number;
+  releasedAmount: number;
+  remainingAmount: number;
+  scheduledFor: string;
+  releasedAt?: string;
+  status: SettlementBatchStatus;
+  currency: CurrencyCode;
+  estimated: boolean;
+}
+
+// ---- Payout Summary (derived from payouts list) ----
+export interface PayoutSummary {
+  totalPaid: number;
+  totalPaidCurrency: CurrencyCode;
+  inReviewCount: number;
+  reservedCount: number;
+  totalReserved: number;
+  nextScheduledDate?: string;
+  availableAfterNextRelease?: number;
+  totalScheduledForRelease?: number;
+  totalPaidOutCount: number;
 }
 
 // ---- Transaction stats extended ----
@@ -928,7 +996,16 @@ export interface TransactionStatsExtended {
   volume: number;
   grossVolume?: number;
   recordedFees?: number;
+  merchantCosts?: number;
   netAfterRecordedFees?: number;
   feeBasis?: string;
+  feeClassification?: string;
+  feeReconciliationStatus?: string;
   reconciliationStatus?: string;
+  // Backend compatibility aliases
+  revenue?: number;
+  revenueSeries?: { date: string; value: number }[];
+  grossVolumeSeries?: { date: string; value: number }[];
+  costSeries?: { date: string; value: number }[];
+  netSeries?: { date: string; value: number }[];
 }

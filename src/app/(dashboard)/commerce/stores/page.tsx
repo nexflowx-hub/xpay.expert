@@ -131,7 +131,7 @@ export default function StoresPage() {
                 <TableHead className="text-xs font-medium">Currency</TableHead>
                 <TableHead className="text-xs font-medium">Status</TableHead>
                 <TableHead className="text-xs font-medium text-right">Products</TableHead>
-                <TableHead className="text-xs font-medium text-right">Revenue</TableHead>
+                <TableHead className="text-xs font-medium text-right">Volume</TableHead>
                 <TableHead className="text-xs font-medium text-right">Created</TableHead>
               </TableRow>
             </TableHeader>
@@ -273,7 +273,7 @@ export default function StoresPage() {
                             compact: true,
                           })}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">Revenue</p>
+                        <p className="text-[10px] text-muted-foreground">Volume</p>
                       </div>
                       <div className="rounded-lg bg-background/40 p-2.5 text-center">
                         <Globe className="mx-auto h-3.5 w-3.5 text-muted-foreground" />

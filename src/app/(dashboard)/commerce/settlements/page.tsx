@@ -13,6 +13,9 @@ import {
   Lock,
   DollarSign,
   Percent,
+  CalendarClock,
+  ArrowDownToLine,
+  BarChart3,
 } from "lucide-react";
 import { useSettlements, useSettlementOverview } from "@/hooks/use-queries";
 import {
@@ -41,6 +44,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import type { DataTableFilters, Settlement } from "@/types";
 
@@ -49,8 +53,11 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "pending_provider", label: "A aguardar fornecedor" },
   { value: "pending_review", label: "Em revisao" },
   { value: "held", label: "Retido" },
+  { value: "scheduled", label: "Agendado" },
+  { value: "partially_released", label: "Parcialmente libertado" },
   { value: "ready", label: "Disponivel" },
   { value: "released", label: "Libertado" },
+  { value: "cancelled", label: "Cancelado" },
   { value: "pending", label: "Pending" },
   { value: "available", label: "Available" },
   { value: "processing", label: "Processing" },
@@ -72,6 +79,14 @@ const settlementStatusConfig: Record<
     label: "Retido",
     className: "bg-rose-500/12 text-rose-400 border-rose-500/25",
   },
+  scheduled: {
+    label: "Agendado",
+    className: "bg-sky-500/12 text-sky-400 border-sky-500/25",
+  },
+  partially_released: {
+    label: "Parcialmente libertado",
+    className: "bg-violet-500/12 text-violet-400 border-violet-500/25",
+  },
   ready: {
     label: "Disponivel",
     className: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25",
@@ -79,6 +94,10 @@ const settlementStatusConfig: Record<
   released: {
     label: "Libertado",
     className: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25",
+  },
+  cancelled: {
+    label: "Cancelado",
+    className: "bg-muted text-muted-foreground border-border",
   },
   pending: {
     label: "Pending",
@@ -93,6 +112,17 @@ const settlementStatusConfig: Record<
     className: "bg-sky-500/12 text-sky-400 border-sky-500/25",
   },
 };
+
+// Fee label — never call it Revenue in merchant view
+function getFeeLabel(s: Settlement): string {
+  if (s.feeClassification === "merchant_cost_unclassified") {
+    return "Custo em reconciliacao";
+  }
+  if (s.feeBasis === "legacy_recorded_fee") {
+    return "Taxas historicas";
+  }
+  return "Custos de processamento";
+}
 
 const PAGE_SIZE = 15;
 
@@ -129,6 +159,26 @@ export default function SettlementsPage() {
       overview.totalMerchantNet === 0
     : false;
 
+  // Derive release calendar entries from settlements with scheduled/partial release
+  const releaseEntries = React.useMemo(() => {
+    return settlements.filter(
+      (s) =>
+        s.status === "scheduled" ||
+        s.status === "partially_released" ||
+        s.status === "ready" ||
+        (s.scheduledFor && s.status !== "released" && s.status !== "cancelled")
+    );
+  }, [settlements]);
+
+  const isLegacyFee = overview?.feeBasis === "legacy_recorded_fee";
+  const isUnclassified = overview?.feeClassification === "merchant_cost_unclassified";
+
+  const overviewFeeLabel = isUnclassified
+    ? "Taxas registadas — classificacao em reconciliacao"
+    : isLegacyFee
+      ? "Taxas historicas registadas"
+      : "Custos de processamento";
+
   function updateFilter(key: keyof DataTableFilters, value: string | number | undefined) {
     setFilters((prev) => ({
       ...prev,
@@ -160,24 +210,17 @@ export default function SettlementsPage() {
       {overview && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
-            label="Bruto"
+            label="Bruto processado"
             value={overview.totalGross}
             icon={DollarSign}
             accent="green"
             format={(n) => formatCurrency(n, overview.currency, { compact: true })}
           />
           <StatCard
-            label="Taxas do fornecedor"
-            value={overview.totalProviderFee}
+            label={overviewFeeLabel}
+            value={overview.totalProviderFee + overview.totalPlatformFee}
             icon={Percent}
             accent="rose"
-            format={(n) => formatCurrency(n, overview.currency, { compact: true })}
-          />
-          <StatCard
-            label="Taxas da plataforma"
-            value={overview.totalPlatformFee}
-            icon={Percent}
-            accent="amber"
             format={(n) => formatCurrency(n, overview.currency, { compact: true })}
           />
           <StatCard
@@ -186,6 +229,13 @@ export default function SettlementsPage() {
             icon={DollarSign}
             accent="blue"
             format={(n) => formatCurrency(n, overview.currency, { compact: true })}
+          />
+          <StatCard
+            label="Batches libertados"
+            value={overview.releasedCount}
+            icon={PiggyBank}
+            accent="green"
+            format={(n) => n.toString()}
           />
           <StatCard
             label="Batches em revisao"
@@ -202,11 +252,18 @@ export default function SettlementsPage() {
             format={(n) => n.toString()}
           />
           <StatCard
-            label="Batches libertados"
-            value={overview.releasedCount}
-            icon={PiggyBank}
-            accent="green"
-            format={(n) => n.toString()}
+            label="Total agendado para liberacao"
+            value={overview.totalScheduled ?? 0}
+            icon={CalendarClock}
+            accent="blue"
+            format={(n) => formatCurrency(n, overview.currency, { compact: true })}
+          />
+          <StatCard
+            label="Valor remanescente"
+            value={overview.totalRemaining ?? 0}
+            icon={BarChart3}
+            accent="violet"
+            format={(n) => formatCurrency(n, overview.currency, { compact: true })}
           />
         </div>
       )}
@@ -221,15 +278,109 @@ export default function SettlementsPage() {
         </Alert>
       )}
 
-      {/* Info Banner */}
+      {/* Info Banner — Merchant semantic */}
       <Alert className="border-border/60 bg-card/60 backdrop-blur-xl">
         <Info className="h-4 w-4 text-sky-400" />
         <AlertDescription className="text-xs text-muted-foreground">
-          Settlements represent the settlement of processed payments into your
-          Commerce Settlement Wallet. This is money coming IN from payment
-          processing, separate from payouts (money going OUT).
+          Settlements representam a liquidacao dos pagamentos processados para a sua Commerce Settlement Wallet.
+          Os custos de processamento (taxas do fornecedor e da plataforma) sao despesas deduzidas ao Merchant, nao receita.
+          Os valores agendados tornam-se disponiveis para payout apenas apos confirmacao e liberacao do Settlement.
         </AlertDescription>
       </Alert>
+
+      {/* Release Calendar */}
+      {!isLoading && releaseEntries.length > 0 && (
+        <Card className="border-border/60 bg-card/60 backdrop-blur-xl">
+          <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-sky-400" />
+              <div>
+                <h3 className="text-sm font-semibold">Calendario de liberacoes</h3>
+                <p className="text-xs text-muted-foreground">Previsao de disponibilidade dos Settlements</p>
+              </div>
+            </div>
+            <Badge variant="outline" className="border-sky-500/25 text-xs text-sky-400 bg-sky-500/10">
+              {releaseEntries.length} agendados
+            </Badge>
+          </div>
+
+          <div className="p-5">
+            <Alert className="mb-4 border-border/60 bg-background/40">
+              <Info className="h-4 w-4 text-sky-400" />
+              <AlertDescription className="text-xs text-muted-foreground">
+                A data de liberacao e uma previsao operacional. O valor torna-se disponivel para payout apenas depois da confirmacao e liberacao do Settlement.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              {releaseEntries.map((s) => {
+                const sc = settlementStatusConfig[s.status] ?? {
+                  label: s.status,
+                  className: "bg-muted text-muted-foreground border-border",
+                };
+                const hasPartial = s.releasedAmount !== undefined && s.releasedAmount > 0;
+                const remaining = s.remainingAmount ?? (s.scheduledAmount ?? s.merchantNet) - (s.releasedAmount ?? 0);
+                return (
+                  <motion.div key={s.id} {...fadeUp}>
+                    <div className="flex flex-col gap-2 rounded-lg border border-border/40 bg-background/40 p-4 sm:flex-row sm:items-center sm:gap-4">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-500/10 text-sky-400">
+                          <CalendarClock className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium">{s.storeName ?? "—"}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {s.storeCode ?? s.batch}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-right sm:grid-cols-3">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Previsto</p>
+                          <p className="font-mono text-xs font-semibold tabular-nums">
+                            {formatCurrency(s.scheduledAmount ?? s.merchantNet, s.currency)}
+                          </p>
+                        </div>
+                        {hasPartial && (
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Ja liberado</p>
+                            <p className="font-mono text-xs font-medium tabular-nums text-emerald-400">
+                              {formatCurrency(s.releasedAmount!, s.currency)}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">{hasPartial ? "Remanescente" : "Montante"}</p>
+                          <p className="font-mono text-xs font-medium tabular-nums text-amber-400">
+                            {formatCurrency(remaining, s.currency)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-end">
+                        <Badge
+                          variant="outline"
+                          className={cn("text-[10px] font-medium", sc.className)}
+                        >
+                          {sc.label}
+                        </Badge>
+                        <p className="text-[10px] text-muted-foreground">
+                          {s.scheduledFor
+                            ? formatDate(s.scheduledFor)
+                            : s.providerAvailableDate
+                              ? formatDate(s.providerAvailableDate)
+                              : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Filter Bar */}
       <Card className="border-border/60 bg-card/60 p-4 backdrop-blur-xl">
@@ -273,9 +424,9 @@ export default function SettlementsPage() {
                 <TableHead className="text-xs font-medium">Provider</TableHead>
                 <TableHead className="text-xs font-medium text-right">Txns</TableHead>
                 <TableHead className="text-xs font-medium text-right">Gross</TableHead>
-                <TableHead className="text-xs font-medium text-right">Provider Fee</TableHead>
-                <TableHead className="text-xs font-medium text-right">Platform Fee</TableHead>
+                <TableHead className="text-xs font-medium text-right">Processing Costs</TableHead>
                 <TableHead className="text-xs font-medium text-right">Merchant Net</TableHead>
+                <TableHead className="text-xs font-medium text-right">Released</TableHead>
                 <TableHead className="text-xs font-medium text-right">Available date</TableHead>
                 <TableHead className="text-xs font-medium">Status</TableHead>
               </TableRow>
@@ -306,8 +457,9 @@ export default function SettlementsPage() {
                         label: s.status,
                         className: "bg-muted text-muted-foreground border-border",
                       };
-                      // Use store_name from batch field or fallback to storeName
-                      const batchLabel = (s as unknown as Record<string, string>)?.store_code ?? s.batch;
+                      const batchLabel = s.storeCode ?? s.batch;
+                      const totalFees = s.providerFee + s.xpayFee;
+                      const hasPartial = s.releasedAmount !== undefined && s.releasedAmount > 0;
                       return (
                         <TableRow key={s.id} className="border-border/30">
                           <TableCell className="font-mono text-xs text-primary">
@@ -326,13 +478,22 @@ export default function SettlementsPage() {
                             {formatCurrency(s.gross, s.currency)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-xs tabular-nums text-rose-400">
-                            −{formatCurrency(s.providerFee, s.currency)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums text-rose-400">
-                            −{formatCurrency(s.xpayFee, s.currency)}
+                            −{formatCurrency(totalFees, s.currency)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm font-medium tabular-nums">
                             {formatCurrency(s.merchantNet, s.currency)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs tabular-nums">
+                            {hasPartial ? (
+                              <span className="text-emerald-400">
+                                {formatCurrency(s.releasedAmount!, s.currency)}
+                                <span className="ml-1 text-muted-foreground">
+                                  / {formatCurrency(s.scheduledAmount ?? s.merchantNet, s.currency)}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground">
                             {formatDate(s.providerAvailableDate)}
@@ -403,7 +564,9 @@ export default function SettlementsPage() {
                   label: s.status,
                   className: "bg-muted text-muted-foreground border-border",
                 };
-                const batchLabel = (s as unknown as Record<string, string>)?.store_code ?? s.batch;
+                const batchLabel = s.storeCode ?? s.batch;
+                const totalFees = s.providerFee + s.xpayFee;
+                const hasPartial = s.releasedAmount !== undefined && s.releasedAmount > 0;
                 return (
                   <motion.div key={s.id} {...fadeUp}>
                     <Card className="border-border/60 bg-card/60 p-4 backdrop-blur-xl">
@@ -441,6 +604,24 @@ export default function SettlementsPage() {
                             {formatCurrency(s.merchantNet, s.currency)}
                           </p>
                         </div>
+                        <div className="rounded-lg bg-background/40 p-2">
+                          <p className="text-[10px] text-muted-foreground">
+                            Processing Costs
+                          </p>
+                          <p className="font-mono text-xs tabular-nums text-rose-400">
+                            −{formatCurrency(totalFees, s.currency)}
+                          </p>
+                        </div>
+                        {hasPartial && (
+                          <div className="rounded-lg bg-background/40 p-2">
+                            <p className="text-[10px] text-muted-foreground">
+                              Released
+                            </p>
+                            <p className="font-mono text-xs tabular-nums text-sky-400">
+                              {formatCurrency(s.releasedAmount!, s.currency)}
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">

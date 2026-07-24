@@ -48,3 +48,32 @@ Stage Summary:
 - Banking and advisory overview pages use CapabilityPlaceholderPage
 - Product switcher capability-aware with toast feedback
 - All 4 i18n locales updated with new nav and section keys
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Finance UI semantic corrections — analytics, fees, payouts, release calendar
+
+Work Log:
+- Updated src/types/index.ts: added SettlementBatchStatus union type, extended RawSettlementBatch with partial release fields (scheduled_amount, released_amount, remaining_amount, scheduled_for), feeBasis/feeClassification/feeReconciliationStatus fields; extended Settlement with storeCode, partial release fields, feeBasis, feeClassification; extended SettlementOverview with scheduled/partiallyReleased/ready/cancelled counts, totalScheduled/totalReleased/totalRemaining, nextScheduledDate/Amount, feeBasis/feeClassification; added ReleaseCalendarEntry and PayoutSummary types; extended TransactionStatsExtended with merchantCosts, feeClassification, feeReconciliationStatus, backend compatibility aliases (revenue, revenueSeries, grossVolumeSeries, costSeries, netSeries)
+- Updated src/hooks/use-queries.ts: updated normalizeSettlementBatch to include storeCode, partial release fields, feeBasis, feeClassification; updated useSettlementOverview to include all new release calendar fields; added useMerchantPayoutSummary hook (derives totalPaid, inReviewCount, reservedCount, totalReserved from payout list)
+- Rewrote src/app/(dashboard)/commerce/wallets/page.tsx: expanded to 8 StatCards (added "Ja pago" / Already Paid); feeClassification-aware label logic (merchant_cost_unclassified shows "Taxas registadas — classificacao em reconciliacao"); legacy_recorded_fee shows "Taxas historicas registadas"; enhanced disclaimer Alert explaining net after fees vs wallet balance distinction; added isUnclassifiedFee badge
+- Rewrote src/app/(dashboard)/commerce/settlements/page.tsx: added 8 overview StatCards (added Total agendado para liberacao, Valor remanescente); added Release Calendar section with partial release support (scheduled/released/remaining); added status configs for scheduled, partially_released, cancelled; table columns renamed "Provider Fee"/"Platform Fee" → "Processing Costs" (single merged column); added Released column with partial release display; added release disclaimer Alert; merchant semantic explanation in info Alert
+- Rewrote src/app/(dashboard)/commerce/payouts/page.tsx: added 6-card summary panel (Total ja pago, Payouts em analise, Payouts reservados, Total reservado, Proxima liberacao prevista, Total de payouts pagos); security gating shows history but disables creation when capability false; enhanced capability Alert with explicit security messaging
+- Fixed fee terminology audit: changed "Revenue" to "Volume" in commerce stores page (merchant view); Admin Revenue page keeps "Revenue" label (platform perspective)
+- Updated src/lib/i18n/locales.ts: added 24 finance-specific translation keys (fin.*) in all 4 locales (EN, PT-BR, FR, ES) covering fee labels, wallet labels, payout labels, release calendar labels, disclaimers
+- Updated README.md: corrected API endpoints (settlements/batches, settlements/overview), added transactions/stats endpoint; added merchant financial semantics description; updated Key Features with 8-card wallet, payout summary, release calendar; updated Module Status table with detailed notes; clarified Admin Revenue semantic separation
+- Validated: tsc --noEmit passes for all changed files; ESLint passes clean
+
+Stage Summary:
+- Fees NEVER appear as "Revenue" in any Merchant view (wallets, settlements, payouts, stores, overview)
+- Gross/costs/net are presented as separate distinct metrics
+- Wallet buckets (balance, available, reserved, pending) are separated from processing metrics (gross, fees, net)
+- Paid out amounts shown as historical outflow, not mixed with wallet balance
+- Release calendar supports partial releases with scheduled/released/remaining amounts
+- Settlements support 6 new statuses (scheduled, partially_released, cancelled + existing)
+- Payout summary panel shows 6 derived metrics from payout list
+- Security: when merchantPayouts capability is false, history is shown but creation is disabled
+- Backend compatibility: frontend prefers new fields (grossVolume, recordedFees, netAfterRecordedFees) but accepts legacy aliases
+- Admin Revenue page uses correct "Platform Revenue" semantics, separated from Merchant cost labels
+- All 4 i18n locales have 24+ finance keys for consistent labeling

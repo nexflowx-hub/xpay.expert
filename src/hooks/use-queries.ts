@@ -475,6 +475,7 @@ function normalizeSettlementBatch(raw: unknown): Settlement {
     merchantId: String(r.merchant_id ?? ""),
     merchantName: "",
     storeName: String(r.store_name ?? ""),
+    storeCode: String(r.store_code ?? ""),
     provider: String(r.provider ?? ""),
     transactionCount: toFiniteNumber(r.transaction_count),
     gross: toFiniteNumber(r.gross_amount),
@@ -486,6 +487,13 @@ function normalizeSettlementBatch(raw: unknown): Settlement {
     status: (r.status as Settlement["status"]) ?? "pending",
     createdAt: String(r.created_at ?? ""),
     releasedAt: r.released_at ? String(r.released_at) : undefined,
+    // Partial release support
+    scheduledAmount: toFiniteNumber(r.scheduled_amount),
+    releasedAmount: toFiniteNumber(r.released_amount),
+    remainingAmount: toFiniteNumber(r.remaining_amount),
+    scheduledFor: r.scheduled_for ? String(r.scheduled_for) : undefined,
+    feeBasis: r.fee_basis ? String(r.fee_basis) : undefined,
+    feeClassification: r.fee_classification ? String(r.fee_classification) : undefined,
   };
 }
 
@@ -522,8 +530,19 @@ export function useSettlementOverview() {
         totalMerchantNet: toFiniteNumber(raw.totalMerchantNet ?? raw.total_merchant_net),
         pendingReviewCount: toFiniteNumber(raw.pendingReviewCount ?? raw.pending_review_count),
         heldCount: toFiniteNumber(raw.heldCount ?? raw.held_count),
+        scheduledCount: toFiniteNumber(raw.scheduledCount ?? raw.scheduled_count),
+        partiallyReleasedCount: toFiniteNumber(raw.partiallyReleasedCount ?? raw.partially_released_count),
+        readyCount: toFiniteNumber(raw.readyCount ?? raw.ready_count),
         releasedCount: toFiniteNumber(raw.releasedCount ?? raw.released_count),
+        cancelledCount: toFiniteNumber(raw.cancelledCount ?? raw.cancelled_count),
+        totalScheduled: toFiniteNumber(raw.totalScheduled ?? raw.total_scheduled),
+        totalReleased: toFiniteNumber(raw.totalReleased ?? raw.total_released),
+        totalRemaining: toFiniteNumber(raw.totalRemaining ?? raw.total_remaining),
+        nextScheduledDate: raw.nextScheduledDate ?? raw.next_scheduled_date ? String(raw.nextScheduledDate ?? raw.next_scheduled_date) : undefined,
+        nextScheduledAmount: toFiniteNumber(raw.nextScheduledAmount ?? raw.next_scheduled_amount),
         currency: (raw.currency as CurrencyCode) ?? "EUR",
+        feeBasis: raw.feeBasis ?? raw.fee_basis ? String(raw.feeBasis ?? raw.fee_basis) : undefined,
+        feeClassification: raw.feeClassification ?? raw.fee_classification ? String(raw.feeClassification ?? raw.fee_classification) : undefined,
       };
     },
     ...defaultOptions,
@@ -594,6 +613,36 @@ export function useMerchantPayouts(filters?: { status?: string; limit?: number; 
       };
     },
     ...defaultOptions,
+  });
+}
+
+// ---- Merchant Payout Summary (derived from payouts list) ----
+
+export function useMerchantPayoutSummary() {
+  return useQuery({
+    queryKey: ["merchant", "payouts", "summary"],
+    queryFn: async () => {
+      const raw = await merchantPayoutEndpoints.list({ limit: 1000 }) as { items?: unknown[] };
+      const items = (raw?.items ?? []) as MerchantPayout[];
+      const paid = items.filter((p) => p.status === "paid");
+      const inReview = items.filter((p) => p.status === "pending_review");
+      const approved = items.filter((p) => p.status === "approved");
+      const processing = items.filter((p) => p.status === "processing");
+      const totalPaid = paid.reduce((s, p) => s + toFiniteNumber(p.payoutAmount), 0);
+      const totalReserved = [...inReview, ...approved, ...processing].reduce((s, p) => s + toFiniteNumber(p.payoutAmount), 0);
+      const lastPaidDate = paid.length > 0 ? paid.sort((a, b) => b.paidAt?.localeCompare(a.paidAt ?? "") ? -1 : 1)[0]?.paidAt : undefined;
+      return {
+        totalPaid,
+        totalPaidCurrency: (paid[0]?.payoutCurrency ?? "EUR") as CurrencyCode,
+        inReviewCount: inReview.length,
+        reservedCount: inReview.length + approved.length + processing.length,
+        totalReserved,
+        nextScheduledDate: lastPaidDate,
+        totalPaidOutCount: paid.length,
+      };
+    },
+    ...defaultOptions,
+    staleTime: 60 * 1000,
   });
 }
 

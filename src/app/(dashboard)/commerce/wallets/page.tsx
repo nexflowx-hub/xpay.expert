@@ -14,8 +14,11 @@ import {
   TrendingUp,
   Receipt,
   Info,
+  CircleDollarSign,
+  ArrowDownFromLine,
+  Banknote,
 } from "lucide-react";
-import { useWallets, useTransactionStats, usePlatformBootstrap } from "@/hooks/use-queries";
+import { useWallets, useTransactionStats, usePlatformBootstrap, useMerchantPayoutSummary } from "@/hooks/use-queries";
 import {
   StatCard,
   PageHeader,
@@ -68,6 +71,8 @@ export default function CommerceWalletsPage() {
 
   const { data: bootstrap } = usePlatformBootstrap();
 
+  const { data: payoutSummary, isLoading: payoutSummaryLoading } = useMerchantPayoutSummary();
+
   const wallets: Wallet[] =
     (walletsRes as unknown as { wallets?: Wallet[] } | null)?.wallets ?? [];
   const summary: WalletSummary | null =
@@ -79,6 +84,7 @@ export default function CommerceWalletsPage() {
   const recordedFees = Number(stats?.recordedFees ?? 0);
   const netAfterRecordedFees = Number(stats?.netAfterRecordedFees ?? 0);
   const feeBasis = String(stats?.feeBasis ?? "");
+  const feeClassification = String(stats?.feeClassification ?? "");
   const reconciliationStatus = String(stats?.reconciliationStatus ?? "");
 
   const capabilities = bootstrap?.capabilities ?? {};
@@ -88,6 +94,14 @@ export default function CommerceWalletsPage() {
     (capabilities.merchantPayouts as CapabilityState) === "enabled";
 
   const isLegacyFee = feeBasis === "legacy_recorded_fee";
+  const isUnclassifiedFee = feeClassification === "merchant_cost_unclassified";
+
+  // Fee label logic per merchant perspective
+  const feeLabel = isUnclassifiedFee
+    ? "Taxas registadas — classificacao em reconciliacao"
+    : isLegacyFee
+      ? "Taxas historicas registadas"
+      : "Taxas registadas";
 
   const isLoading = walletsLoading || statsLoading;
 
@@ -113,14 +127,15 @@ export default function CommerceWalletsPage() {
         description="Commerce Settlement Wallets — track balances, reserved funds, and request payouts."
       />
 
-      {/* Summary Stat Cards */}
+      {/* Merchant Financial Summary — 8 Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {isLoading ? (
-          Array.from({ length: 7 }).map((_, i) => (
+          Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-xl" />
           ))
         ) : (
           <>
+            {/* 1. Saldo total — Wallet operational bucket */}
             <StatCard
               label="Saldo total"
               value={summary?.totalBalance ?? 0}
@@ -128,6 +143,7 @@ export default function CommerceWalletsPage() {
               accent="blue"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
             />
+            {/* 2. Bruto processado — Historical processing metric */}
             <StatCard
               label="Bruto processado"
               value={grossVolume}
@@ -135,13 +151,15 @@ export default function CommerceWalletsPage() {
               accent="green"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
             />
+            {/* 3. Taxas registadas — COST, never Revenue */}
             <StatCard
-              label={isLegacyFee ? "Taxas historicas registadas" : "Taxas registadas"}
+              label={feeLabel}
               value={recordedFees}
               icon={Receipt}
               accent="rose"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
             />
+            {/* 4. Liquido apos taxas — Historical processing metric */}
             <StatCard
               label="Liquido apos taxas"
               value={netAfterRecordedFees}
@@ -149,26 +167,37 @@ export default function CommerceWalletsPage() {
               accent="violet"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
             />
+            {/* 5. Pendente de liberacao — Wallet operational bucket */}
             <StatCard
-              label="Pendente de liquidacao"
+              label="Pendente de liberacao"
               value={summary?.totalPending ?? 0}
               icon={Clock}
               accent="amber"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
             />
+            {/* 6. Disponivel para payout — Wallet operational bucket */}
             <StatCard
               label="Disponivel para payout"
               value={summary?.totalAvailable ?? 0}
-              icon={Coins}
+              icon={CircleDollarSign}
               accent="green"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
             />
+            {/* 7. Reservado — Wallet operational bucket */}
             <StatCard
               label="Reservado"
               value={summary?.totalReserved ?? 0}
               icon={Lock}
               accent="amber"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
+            />
+            {/* 8. Ja pago — Historical payout outflows */}
+            <StatCard
+              label="Ja pago"
+              value={payoutSummary?.totalPaid ?? 0}
+              icon={Banknote}
+              accent="violet"
+              format={(n) => formatCurrency(n, payoutSummary?.totalPaidCurrency ?? "EUR", { compact: true })}
             />
           </>
         )}
@@ -186,12 +215,19 @@ export default function CommerceWalletsPage() {
                 Reconciliacao pendente
               </Badge>
             )}
+            {isUnclassifiedFee && (
+              <Badge variant="outline" className="border-sky-500/40 text-xs text-sky-400 bg-sky-500/10">
+                Taxas em classificacao
+              </Badge>
+            )}
           </div>
 
           <Alert className="border-border/60 bg-card/60 backdrop-blur-xl">
             <Info className="h-4 w-4 text-sky-400" />
             <AlertDescription className="text-xs text-muted-foreground">
-              Liquido apos taxas representa o volume processado com sucesso menos as taxas registadas. O valor disponivel para payout depende da liquidacao e reconciliacao da Wallet.
+              Liquido apos taxas representa o volume processado com sucesso menos as taxas registadas.
+              E uma metrica historica de processamento e NAO deve ser confundido com o saldo disponivel na Wallet.
+              O valor disponivel para payout depende da liquidacao e reconciliacao da Wallet.
             </AlertDescription>
           </Alert>
         </div>

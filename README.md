@@ -268,6 +268,7 @@ Error envelope:
 | `GET/POST` | `merchant/stores`, `merchant/stores/:id` | Store CRUD |
 | `GET` | `transactions`, `transactions/:id`, `transactions/stats` | Transactions + statistics |
 | `GET` | `analytics/overview` | Dashboard KPIs & charts |
+| `GET` | `transactions/stats` | Extended transaction statistics (grossVolume, recordedFees, netAfterRecordedFees) |
 | `GET` | `wallets` | Wallet balances |
 | `GET` | `wallets/movements` | Wallet movement history |
 | `GET` | `risk/profile`, `risk/kyc/status` | Risk profile + KYC status |
@@ -275,7 +276,8 @@ Error envelope:
 | `GET` | `customers` | Customer directory |
 | `GET/POST/DELETE` | `products` | Product catalogue CRUD |
 | `GET` | `payment-links`, `invoices`, `subscriptions` | Read-only listings |
-| `GET` | `merchant/settlements` | Settlement batches |
+| `GET` | `settlements/overview` | Settlement overview (gross, fees, net, release stats) |
+| `GET` | `settlements/batches` | Settlement batches (with partial release support) |
 | `GET` | `merchant/payouts/options` | Payout methods |
 | `POST` | `merchant/payouts/validate` | Validate payout payload |
 | `POST` | `merchant/payouts` | Create payout (`Idempotency-Key` header) |
@@ -411,8 +413,11 @@ Applies to: API key creation/rotation, transfer confirmation, email verification
 ### Merchant Dashboard
 - **Real-time analytics** — KPI cards, volume charts, transaction breakdowns
 - **Payment management** — search, filtering, and detail views for transactions
+- **Merchant financial semantics** — fees displayed as costs (never revenue); gross/costs/net separated; wallet buckets (balance, available, reserved, pending) distinct from processing metrics
+- **8-card wallet overview** — Total balance, Gross processed, Recorded fees, Net after fees, Pending release, Available for payout, Reserved, Already paid
 - **Multi-wallet support** — balance tracking, movement history, deposits, payouts, swaps
-- **Payout engine** — validation, FX quotes, idempotent creation (`Idempotency-Key`), admin approval workflow
+- **Payout engine** — summary panel (total paid, in review, reserved, next release), validation, FX quotes, idempotent creation, capability gating
+- **Settlements with release calendar** — batch listing, partial release support (scheduled/released/remaining), release availability forecast
 - **Multi-store management** — per-store configurations and API key scoping
 - **Products, invoices, subscriptions, payment links** — full catalogue management
 - **FX & Treasury** — currency conversion, treasury overview with charts
@@ -426,7 +431,8 @@ Applies to: API key creation/rotation, transfer confirmation, email verification
 ### Admin Console
 - **Merchant directory**, **KYC review queue**, **payout management** (approve/reject/process)
 - **System monitoring** — health checks, workers, queues, logs
-- **Revenue analytics**, **feature flag management**, **gateway configurations**
+- **Platform Revenue analytics** — platform take rate (semantically distinct from Merchant cost labels), merchant contribution, regional breakdown
+- **Feature flag management**, **gateway configurations**
 - **Admin guard** — role-gated access via `GET /platform/capabilities` or fallback probe
 
 ### Advisory
@@ -448,8 +454,9 @@ Applies to: API key creation/rotation, transfer confirmation, email verification
 | Module | Status | Notes |
 |---|---|---|
 | Commerce (Overview, Payments, Wallets, Stores, Products) | ✅ Active | Full CRUD where applicable |
-| Payouts | ✅ Active | Validation + idempotent creation + admin workflow |
-| Settlements | ✅ Active | Read-only listing |
+| Wallets | ✅ Active | 8-card summary (balance/gross/fees/net/pending/available/reserved/paid) |
+| Payouts | ✅ Active | Summary panel + validation + idempotent creation + admin workflow + capability gating |
+| Settlements | ✅ Active | Overview stats + batch listing + release calendar + partial release support |
 | Customers | ✅ Active | Read-only directory |
 | Invoices, Subscriptions, Payment Links | ✅ Active | Read-only listings |
 | FX & Treasury | ✅ Active | Wallet swaps, treasury analytics |
