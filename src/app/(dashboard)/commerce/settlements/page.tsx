@@ -9,12 +9,17 @@ import {
   ChevronRight,
   Inbox,
   Info,
+  AlertTriangle,
+  Lock,
+  DollarSign,
+  Percent,
 } from "lucide-react";
-import { useSettlements } from "@/hooks/use-queries";
+import { useSettlements, useSettlementOverview } from "@/hooks/use-queries";
 import {
   PageHeader,
   ErrorState,
   EmptyState,
+  StatCard,
   fadeUp,
 } from "@/components/shared";
 import { Card } from "@/components/ui/card";
@@ -35,15 +40,19 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import type { DataTableFilters, Settlement } from "@/types";
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "All Statuses" },
+  { value: "pending_provider", label: "A aguardar fornecedor" },
+  { value: "pending_review", label: "Em revisao" },
+  { value: "held", label: "Retido" },
+  { value: "ready", label: "Disponivel" },
+  { value: "released", label: "Libertado" },
   { value: "pending", label: "Pending" },
   { value: "available", label: "Available" },
-  { value: "released", label: "Released" },
   { value: "processing", label: "Processing" },
 ];
 
@@ -51,16 +60,32 @@ const settlementStatusConfig: Record<
   string,
   { label: string; className: string }
 > = {
+  pending_provider: {
+    label: "A aguardar fornecedor",
+    className: "bg-amber-500/12 text-amber-400 border-amber-500/25",
+  },
+  pending_review: {
+    label: "Em revisao",
+    className: "bg-amber-500/12 text-amber-400 border-amber-500/25",
+  },
+  held: {
+    label: "Retido",
+    className: "bg-rose-500/12 text-rose-400 border-rose-500/25",
+  },
+  ready: {
+    label: "Disponivel",
+    className: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25",
+  },
+  released: {
+    label: "Libertado",
+    className: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25",
+  },
   pending: {
     label: "Pending",
     className: "bg-amber-500/12 text-amber-400 border-amber-500/25",
   },
   available: {
     label: "Available",
-    className: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25",
-  },
-  released: {
-    label: "Released",
     className: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25",
   },
   processing: {
@@ -86,17 +111,29 @@ export default function SettlementsPage() {
     refetch,
   } = useSettlements(filters);
 
+  const {
+    data: overview,
+  } = useSettlementOverview();
+
   const settlements: Settlement[] =
     (settlementsPage as { data?: Settlement[] } | null)?.data ?? [];
   const meta = (settlementsPage as { meta?: { page: number; limit: number; total: number; pages: number } } | null)?.meta;
   const totalPages = meta?.pages ?? 1;
   const totalItems = meta?.total ?? 0;
 
+  // Check if overview is all zero but transactions have volume
+  const overviewAllZero = overview
+    ? overview.totalGross === 0 &&
+      overview.totalProviderFee === 0 &&
+      overview.totalPlatformFee === 0 &&
+      overview.totalMerchantNet === 0
+    : false;
+
   function updateFilter(key: keyof DataTableFilters, value: string | number | undefined) {
     setFilters((prev) => ({
       ...prev,
-      [key]: value || undefined,
-      page: key !== "page" ? 1 : value,
+      [key]: key === "page" ? (typeof value === "number" ? value : undefined) : (value || undefined),
+      page: key !== "page" ? 1 : (typeof value === "number" ? value : prev.page),
     }));
   }
 
@@ -118,6 +155,71 @@ export default function SettlementsPage() {
         title="Settlements"
         description="Track payment settlements into your Commerce Settlement Wallet."
       />
+
+      {/* Overview Stat Cards */}
+      {overview && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Bruto"
+            value={overview.totalGross}
+            icon={DollarSign}
+            accent="green"
+            format={(n) => formatCurrency(n, overview.currency, { compact: true })}
+          />
+          <StatCard
+            label="Taxas do fornecedor"
+            value={overview.totalProviderFee}
+            icon={Percent}
+            accent="rose"
+            format={(n) => formatCurrency(n, overview.currency, { compact: true })}
+          />
+          <StatCard
+            label="Taxas da plataforma"
+            value={overview.totalPlatformFee}
+            icon={Percent}
+            accent="amber"
+            format={(n) => formatCurrency(n, overview.currency, { compact: true })}
+          />
+          <StatCard
+            label="Liquido do Merchant"
+            value={overview.totalMerchantNet}
+            icon={DollarSign}
+            accent="blue"
+            format={(n) => formatCurrency(n, overview.currency, { compact: true })}
+          />
+          <StatCard
+            label="Batches em revisao"
+            value={overview.pendingReviewCount}
+            icon={AlertTriangle}
+            accent="amber"
+            format={(n) => n.toString()}
+          />
+          <StatCard
+            label="Batches retidos"
+            value={overview.heldCount}
+            icon={Lock}
+            accent="rose"
+            format={(n) => n.toString()}
+          />
+          <StatCard
+            label="Batches libertados"
+            value={overview.releasedCount}
+            icon={PiggyBank}
+            accent="green"
+            format={(n) => n.toString()}
+          />
+        </div>
+      )}
+
+      {/* Warning if overview is all zero */}
+      {overviewAllZero && (
+        <Alert className="border-amber-500/40 bg-amber-500/5 backdrop-blur-xl">
+          <Info className="h-4 w-4 text-amber-400" />
+          <AlertDescription className="text-xs text-amber-300">
+            Settlement Ledger ainda nao reconstruido. Consulte o resumo historico de Transactions.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Info Banner */}
       <Alert className="border-border/60 bg-card/60 backdrop-blur-xl">
@@ -172,9 +274,9 @@ export default function SettlementsPage() {
                 <TableHead className="text-xs font-medium text-right">Txns</TableHead>
                 <TableHead className="text-xs font-medium text-right">Gross</TableHead>
                 <TableHead className="text-xs font-medium text-right">Provider Fee</TableHead>
-                <TableHead className="text-xs font-medium text-right">XPAY Fee</TableHead>
+                <TableHead className="text-xs font-medium text-right">Platform Fee</TableHead>
                 <TableHead className="text-xs font-medium text-right">Merchant Net</TableHead>
-                <TableHead className="text-xs font-medium text-right">Available</TableHead>
+                <TableHead className="text-xs font-medium text-right">Available date</TableHead>
                 <TableHead className="text-xs font-medium">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -204,10 +306,12 @@ export default function SettlementsPage() {
                         label: s.status,
                         className: "bg-muted text-muted-foreground border-border",
                       };
+                      // Use store_name from batch field or fallback to storeName
+                      const batchLabel = (s as unknown as Record<string, string>)?.store_code ?? s.batch;
                       return (
                         <TableRow key={s.id} className="border-border/30">
                           <TableCell className="font-mono text-xs text-primary">
-                            {s.batch}
+                            {batchLabel}
                           </TableCell>
                           <TableCell className="text-sm">
                             {s.storeName ?? "—"}
@@ -299,13 +403,14 @@ export default function SettlementsPage() {
                   label: s.status,
                   className: "bg-muted text-muted-foreground border-border",
                 };
+                const batchLabel = (s as unknown as Record<string, string>)?.store_code ?? s.batch;
                 return (
                   <motion.div key={s.id} {...fadeUp}>
                     <Card className="border-border/60 bg-card/60 p-4 backdrop-blur-xl">
                       <div className="flex items-center justify-between">
                         <div className="min-w-0">
                           <p className="truncate font-mono text-xs text-primary">
-                            {s.batch}
+                            {batchLabel}
                           </p>
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             {s.storeName ?? "—"} · {s.provider}

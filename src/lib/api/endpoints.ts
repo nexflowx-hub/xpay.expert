@@ -42,6 +42,7 @@ import type {
   Subscription,
   Settlement,
   SettlementListResponse,
+  SettlementOverview,
   MerchantPayout,
   MerchantPayoutOptions,
   MerchantPayoutValidation,
@@ -355,10 +356,20 @@ export const subscriptionEndpoints = {
 
 export const settlementEndpoints = {
   list: (filters?: DataTableFilters) =>
-    privateRequestData<SettlementListResponse>({
+    privateRequestData<unknown>({
       method: "GET",
-      url: "merchant/settlements",
+      url: "settlements/batches",
       params: filters,
+    }),
+};
+
+// ---- Settlement Overview (Private) ----
+
+export const settlementOverviewEndpoints = {
+  get: () =>
+    privateRequestData<unknown>({
+      method: "GET",
+      url: "settlements/overview",
     }),
 };
 

@@ -14,29 +14,41 @@ const currencySymbols: Record<string, string> = {
   BTC: "₿",
 };
 
-export function formatCurrency(value: number, currency = "EUR", opts?: { compact?: boolean }) {
-  const symbol = currencySymbols[currency] ?? "";
-  if (opts?.compact && Math.abs(value) >= 1000) {
-    if (Math.abs(value) >= 1_000_000)
-      return `${symbol}${(value / 1_000_000).toFixed(2)}M`;
-    return `${symbol}${(value / 1000).toFixed(1)}k`;
+export function toFiniteNumber(value: unknown, fallback = 0): number {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+  if (typeof value === "string") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
   }
-  return `${symbol}${value.toLocaleString("en-US", {
+  return fallback;
+}
+
+export function formatCurrency(value: unknown, currency = "EUR", opts?: { compact?: boolean }) {
+  const safe = toFiniteNumber(value);
+  const symbol = currencySymbols[currency] ?? "";
+  if (opts?.compact && Math.abs(safe) >= 1000) {
+    if (Math.abs(safe) >= 1_000_000)
+      return `${symbol}${(safe / 1_000_000).toFixed(2)}M`;
+    return `${symbol}${(safe / 1000).toFixed(1)}k`;
+  }
+  return `${symbol}${safe.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 }
 
-export function formatNumber(value: number, opts?: { compact?: boolean }) {
+export function formatNumber(value: unknown, opts?: { compact?: boolean }) {
+  const safe = toFiniteNumber(value);
   if (opts?.compact) {
-    if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
-    if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(1)}k`;
+    if (Math.abs(safe) >= 1_000_000) return `${(safe / 1_000_000).toFixed(2)}M`;
+    if (Math.abs(safe) >= 1000) return `${(safe / 1000).toFixed(1)}k`;
   }
-  return value.toLocaleString("en-US");
+  return safe.toLocaleString("en-US");
 }
 
-export function formatPercent(value: number, dp = 1) {
-  return `${value.toFixed(dp)}%`;
+export function formatPercent(value: unknown, dp = 1) {
+  return `${toFiniteNumber(value).toFixed(dp)}%`;
 }
 
 export function formatDate(iso: string, opts?: { withTime?: boolean }) {

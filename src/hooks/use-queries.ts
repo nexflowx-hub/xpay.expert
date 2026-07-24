@@ -22,6 +22,7 @@ import {
   invoiceEndpoints,
   subscriptionEndpoints,
   settlementEndpoints,
+  settlementOverviewEndpoints,
   merchantPayoutEndpoints,
   adminMerchantPayoutEndpoints,
   adminSettlementEndpoints,
@@ -52,7 +53,13 @@ import type {
   AdminProcessingPayload,
   AdminPaidPayload,
   AdminRejectPayload,
+  Settlement,
+  CurrencyCode,
+  MerchantPayout,
+  MerchantPayoutValidation,
+  MerchantPayoutOptions,
 } from "@/types";
+import { toFiniteNumber } from "@/lib/utils";
 import type {
   SecurityChallengeRequest,
   SecurityChallengeVerifyRequest,
@@ -94,6 +101,7 @@ export const queryKeys = {
   subscriptions: ["subscriptions"] as const,
   // Settlements
   settlements: (filters?: DataTableFilters) => ["settlements", filters] as const,
+  settlementOverview: ["settlements", "overview"] as const,
   // Merchant Payouts
   merchantPayouts: (filters?: { status?: string; limit?: number; offset?: number }) => ["merchant", "payouts", filters] as const,
   merchantPayout: (id: string) => ["merchant", "payouts", id] as const,
@@ -333,7 +341,28 @@ export function useDeleteWebhook() {
 export function useWallets() {
   return useQuery({
     queryKey: queryKeys.wallets,
-    queryFn: () => walletEndpoints.list(),
+    queryFn: async () => {
+      const res = await walletEndpoints.list();
+      const wallets = ((res as unknown as Record<string, unknown>)?.wallets ?? []) as Record<string, unknown>[];
+      const normalized = wallets.map((w) => ({
+        ...w,
+        balance: toFiniteNumber(w.balance),
+        available: toFiniteNumber(w.available),
+        reserved: toFiniteNumber(w.reserved),
+        pending: toFiniteNumber(w.pending, 0),
+      }));
+      const summary = (res as unknown as Record<string, unknown>)?.summary as Record<string, unknown> | undefined;
+      const normSummary = summary
+        ? {
+            totalBalance: toFiniteNumber(summary.totalBalance),
+            totalAvailable: toFiniteNumber(summary.totalAvailable),
+            totalReserved: toFiniteNumber(summary.totalReserved),
+            totalPending: toFiniteNumber(summary.totalPending, 0),
+            currencies: toFiniteNumber(summary.currencies, wallets.length),
+          }
+        : null;
+      return { wallets: normalized, summary: normSummary };
+    },
     ...defaultOptions,
   });
 }
@@ -438,11 +467,67 @@ export function useSubscriptions() {
 
 // ---- Settlements ----
 
+function normalizeSettlementBatch(raw: unknown): Settlement {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    id: String(r.id ?? ""),
+    batch: String(r.id ?? ""),
+    merchantId: String(r.merchant_id ?? ""),
+    merchantName: "",
+    storeName: String(r.store_name ?? ""),
+    provider: String(r.provider ?? ""),
+    transactionCount: toFiniteNumber(r.transaction_count),
+    gross: toFiniteNumber(r.gross_amount),
+    currency: (r.currency as CurrencyCode) ?? "EUR",
+    providerFee: toFiniteNumber(r.provider_fee),
+    xpayFee: toFiniteNumber(r.platform_fee),
+    merchantNet: toFiniteNumber(r.merchant_net),
+    providerAvailableDate: String(r.provider_available_at ?? ""),
+    status: (r.status as Settlement["status"]) ?? "pending",
+    createdAt: String(r.created_at ?? ""),
+    releasedAt: r.released_at ? String(r.released_at) : undefined,
+  };
+}
+
 export function useSettlements(filters?: DataTableFilters) {
   return useQuery({
     queryKey: queryKeys.settlements(filters),
-    queryFn: () => settlementEndpoints.list(filters),
+    queryFn: async () => {
+      const raw = await settlementEndpoints.list(filters) as { items?: unknown[]; pagination?: Record<string, unknown> };
+      const items = (raw?.items ?? []).map(normalizeSettlementBatch);
+      const pag = raw?.pagination ?? {};
+      return {
+        data: items as Settlement[],
+        meta: {
+          page: toFiniteNumber(pag.page, 1),
+          limit: toFiniteNumber(pag.limit, 15),
+          total: toFiniteNumber(pag.total, 0),
+          pages: toFiniteNumber(pag.pages, 1),
+        },
+      };
+    },
     ...defaultOptions,
+  });
+}
+
+export function useSettlementOverview() {
+  return useQuery({
+    queryKey: queryKeys.settlementOverview,
+    queryFn: async () => {
+      const raw = await settlementOverviewEndpoints.get() as Record<string, unknown>;
+      return {
+        totalGross: toFiniteNumber(raw.totalGross ?? raw.total_gross),
+        totalProviderFee: toFiniteNumber(raw.totalProviderFee ?? raw.total_provider_fee),
+        totalPlatformFee: toFiniteNumber(raw.totalPlatformFee ?? raw.total_platform_fee),
+        totalMerchantNet: toFiniteNumber(raw.totalMerchantNet ?? raw.total_merchant_net),
+        pendingReviewCount: toFiniteNumber(raw.pendingReviewCount ?? raw.pending_review_count),
+        heldCount: toFiniteNumber(raw.heldCount ?? raw.held_count),
+        releasedCount: toFiniteNumber(raw.releasedCount ?? raw.released_count),
+        currency: (raw.currency as CurrencyCode) ?? "EUR",
+      };
+    },
+    ...defaultOptions,
+    retry: 0,
   });
 }
 
@@ -451,7 +536,10 @@ export function useSettlements(filters?: DataTableFilters) {
 export function useMerchantPayoutOptions() {
   return useQuery({
     queryKey: queryKeys.merchantPayoutOptions,
-    queryFn: () => merchantPayoutEndpoints.options(),
+    queryFn: async () => {
+      const raw = await merchantPayoutEndpoints.options() as unknown as Record<string, unknown>;
+      return raw as unknown as MerchantPayoutOptions;
+    },
     ...defaultOptions,
     retry: 0,
   });
@@ -461,8 +549,10 @@ export function useMerchantPayoutOptions() {
 
 export function useValidateMerchantPayout() {
   return useMutation({
-    mutationFn: (payload: CreateMerchantPayoutPayload) =>
-      merchantPayoutEndpoints.validate(payload),
+    mutationFn: async (payload: CreateMerchantPayoutPayload) => {
+      const raw = await merchantPayoutEndpoints.validate(payload) as { validation?: unknown };
+      return (raw?.validation ?? raw) as MerchantPayoutValidation;
+    },
   });
 }
 
@@ -471,8 +561,10 @@ export function useValidateMerchantPayout() {
 export function useCreateMerchantPayout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ payload, idempotencyKey }: { payload: CreateMerchantPayoutPayload; idempotencyKey: string }) =>
-      merchantPayoutEndpoints.create(payload, idempotencyKey),
+    mutationFn: async ({ payload, idempotencyKey }: { payload: CreateMerchantPayoutPayload; idempotencyKey: string }) => {
+      const raw = await merchantPayoutEndpoints.create(payload, idempotencyKey) as { payout?: unknown; idempotentReplay?: unknown };
+      return (raw?.payout ?? raw) as MerchantPayout;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.wallets });
       qc.invalidateQueries({ queryKey: queryKeys.merchantPayouts() });
@@ -487,7 +579,20 @@ export function useCreateMerchantPayout() {
 export function useMerchantPayouts(filters?: { status?: string; limit?: number; offset?: number }) {
   return useQuery({
     queryKey: queryKeys.merchantPayouts(filters),
-    queryFn: () => merchantPayoutEndpoints.list(filters),
+    queryFn: async () => {
+      const raw = await merchantPayoutEndpoints.list(filters) as { items?: unknown[]; pagination?: Record<string, unknown> };
+      const items = (raw?.items ?? []) as MerchantPayout[];
+      const pag = raw?.pagination;
+      return {
+        data: items,
+        meta: pag ? {
+          page: toFiniteNumber(pag.page, 1),
+          limit: toFiniteNumber(pag.limit, 10),
+          total: toFiniteNumber(pag.total, 0),
+          pages: toFiniteNumber(pag.pages, 1),
+        } : undefined,
+      };
+    },
     ...defaultOptions,
   });
 }
@@ -497,7 +602,10 @@ export function useMerchantPayouts(filters?: { status?: string; limit?: number; 
 export function useMerchantPayout(id: string) {
   return useQuery({
     queryKey: queryKeys.merchantPayout(id),
-    queryFn: () => merchantPayoutEndpoints.get(id),
+    queryFn: async () => {
+      const raw = await merchantPayoutEndpoints.get(id) as { payout?: unknown };
+      return (raw?.payout ?? raw) as MerchantPayout;
+    },
     ...defaultOptions,
     enabled: !!id,
   });

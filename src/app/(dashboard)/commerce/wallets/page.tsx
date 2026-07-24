@@ -11,8 +11,11 @@ import {
   Coins,
   WalletCards,
   Inbox,
+  TrendingUp,
+  Receipt,
+  Info,
 } from "lucide-react";
-import { useWallets, usePlatformBootstrap } from "@/hooks/use-queries";
+import { useWallets, useTransactionStats, usePlatformBootstrap } from "@/hooks/use-queries";
 import {
   StatCard,
   PageHeader,
@@ -24,6 +27,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency, formatNumber, cn } from "@/lib/utils";
 import { CURRENCIES } from "@/config";
 import type { Wallet, WalletSummary, CapabilityState } from "@/types";
@@ -52,17 +56,30 @@ export default function CommerceWalletsPage() {
 
   const {
     data: walletsRes,
-    isLoading,
-    isError,
-    refetch,
+    isLoading: walletsLoading,
+    isError: walletsError,
+    refetch: refetchWallets,
   } = useWallets();
+
+  const {
+    data: statsRes,
+    isLoading: statsLoading,
+  } = useTransactionStats();
 
   const { data: bootstrap } = usePlatformBootstrap();
 
   const wallets: Wallet[] =
-    (walletsRes as { wallets?: Wallet[] } | null)?.wallets ?? [];
+    (walletsRes as unknown as { wallets?: Wallet[] } | null)?.wallets ?? [];
   const summary: WalletSummary | null =
-    (walletsRes as { summary?: WalletSummary } | null)?.summary ?? null;
+    (walletsRes as unknown as { summary?: WalletSummary } | null)?.summary ?? null;
+
+  const stats = statsRes as Record<string, unknown> | null;
+  const volume = Number(stats?.volume ?? 0);
+  const grossVolume = Number(stats?.grossVolume ?? volume);
+  const recordedFees = Number(stats?.recordedFees ?? 0);
+  const netAfterRecordedFees = Number(stats?.netAfterRecordedFees ?? 0);
+  const feeBasis = String(stats?.feeBasis ?? "");
+  const reconciliationStatus = String(stats?.reconciliationStatus ?? "");
 
   const capabilities = bootstrap?.capabilities ?? {};
 
@@ -70,7 +87,11 @@ export default function CommerceWalletsPage() {
     capabilities.merchantPayouts === true ||
     (capabilities.merchantPayouts as CapabilityState) === "enabled";
 
-  if (isError) {
+  const isLegacyFee = feeBasis === "legacy_recorded_fee";
+
+  const isLoading = walletsLoading || statsLoading;
+
+  if (walletsError) {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
@@ -79,7 +100,7 @@ export default function CommerceWalletsPage() {
         />
         <ErrorState
           message="Failed to load wallets. The backend may be unreachable."
-          onRetry={() => refetch()}
+          onRetry={() => refetchWallets()}
         />
       </div>
     );
@@ -92,45 +113,89 @@ export default function CommerceWalletsPage() {
         description="Commerce Settlement Wallets — track balances, reserved funds, and request payouts."
       />
 
-      {/* Summary Cards */}
+      {/* Summary Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
+          Array.from({ length: 7 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-xl" />
           ))
         ) : (
           <>
             <StatCard
-              label="Total Balance"
+              label="Saldo total"
               value={summary?.totalBalance ?? 0}
               icon={WalletCards}
               accent="blue"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
             />
             <StatCard
-              label="Total Available"
+              label="Bruto processado"
+              value={grossVolume}
+              icon={TrendingUp}
+              accent="green"
+              format={(n) => formatCurrency(n, "EUR", { compact: true })}
+            />
+            <StatCard
+              label={isLegacyFee ? "Taxas historicas registadas" : "Taxas registadas"}
+              value={recordedFees}
+              icon={Receipt}
+              accent="rose"
+              format={(n) => formatCurrency(n, "EUR", { compact: true })}
+            />
+            <StatCard
+              label="Liquido apos taxas"
+              value={netAfterRecordedFees}
+              icon={Coins}
+              accent="violet"
+              format={(n) => formatCurrency(n, "EUR", { compact: true })}
+            />
+            <StatCard
+              label="Pendente de liquidacao"
+              value={summary?.totalPending ?? 0}
+              icon={Clock}
+              accent="amber"
+              format={(n) => formatCurrency(n, "EUR", { compact: true })}
+            />
+            <StatCard
+              label="Disponivel para payout"
               value={summary?.totalAvailable ?? 0}
               icon={Coins}
               accent="green"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
             />
             <StatCard
-              label="Total Reserved"
+              label="Reservado"
               value={summary?.totalReserved ?? 0}
               icon={Lock}
               accent="amber"
               format={(n) => formatCurrency(n, "EUR", { compact: true })}
             />
-            <StatCard
-              label="Currencies"
-              value={summary?.currencies ?? wallets.length}
-              icon={WalletIcon}
-              accent="violet"
-              format={(n) => n.toString()}
-            />
           </>
         )}
       </div>
+
+      {/* Currencies badge + reconciliation alert */}
+      {!isLoading && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="border-border/60 text-xs text-muted-foreground">
+              {summary?.currencies ?? wallets.length} {summary?.currencies === 1 || wallets.length === 1 ? "moeda" : "moedas"}
+            </Badge>
+            {reconciliationStatus === "pending" && (
+              <Badge variant="outline" className="border-amber-500/40 text-xs text-amber-400 bg-amber-500/10">
+                Reconciliacao pendente
+              </Badge>
+            )}
+          </div>
+
+          <Alert className="border-border/60 bg-card/60 backdrop-blur-xl">
+            <Info className="h-4 w-4 text-sky-400" />
+            <AlertDescription className="text-xs text-muted-foreground">
+              Liquido apos taxas representa o volume processado com sucesso menos as taxas registadas. O valor disponivel para payout depende da liquidacao e reconciliacao da Wallet.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Wallet Cards Grid */}
       {isLoading ? (

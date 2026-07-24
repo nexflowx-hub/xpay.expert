@@ -11,14 +11,21 @@ import {
   ChevronRight,
   Inbox,
   ArrowUpRight,
+  Info,
 } from "lucide-react";
-import { useMerchantPayouts } from "@/hooks/use-queries";
-import { PageHeader, ErrorState, EmptyState, fadeUp } from "@/components/shared";
+import { useMerchantPayouts, usePlatformBootstrap } from "@/hooks/use-queries";
+import {
+  PageHeader,
+  ErrorState,
+  EmptyState,
+  fadeUp,
+} from "@/components/shared";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
   TableHeader,
@@ -172,6 +179,11 @@ function PayoutMobileCard({ payout }: { payout: MerchantPayout }) {
 export default function PayoutsListPage() {
   const router = useRouter();
 
+  const { data: bootstrap } = usePlatformBootstrap();
+  const capabilities = bootstrap?.capabilities ?? {};
+  const merchantPayoutsCap = capabilities.merchantPayouts;
+  const payoutEnabled = merchantPayoutsCap === true || merchantPayoutsCap === "enabled";
+
   const [statusFilter, setStatusFilter] = React.useState<string>("");
   const [methodFilter, setMethodFilter] = React.useState<string>("");
   const [currencyFilter, setCurrencyFilter] = React.useState<string>("");
@@ -255,12 +267,24 @@ export default function PayoutsListPage() {
             size="sm"
             className="gap-1.5"
             onClick={() => router.push("/commerce/payouts/new")}
+            disabled={!payoutEnabled}
           >
             <Plus className="h-3.5 w-3.5" />
             New Payout
           </Button>
         }
       />
+
+      {/* Capability Alert */}
+      {!payoutEnabled && (
+        <Alert className="border-amber-500/40 bg-amber-500/5 backdrop-blur-xl">
+          <Info className="h-4 w-4 text-amber-400" />
+          <AlertTitle className="text-xs font-medium">Payouts capability</AlertTitle>
+          <AlertDescription className="text-xs text-muted-foreground">
+            Pedidos de payout serao ativados apos a reconciliacao da Wallet.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Filters */}
       <Card className="border-border/60 bg-card/60 p-4 backdrop-blur-xl">
@@ -417,7 +441,7 @@ export default function PayoutsListPage() {
                               variant="outline"
                               className="gap-1 text-amber-400"
                             >
-                              {payout.fxStatus === "completed"
+                              {payout.fxStatus === "accepted"
                                 ? "Done"
                                 : payout.fxStatus || "Pending"}
                             </Badge>

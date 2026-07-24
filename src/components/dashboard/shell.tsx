@@ -31,6 +31,7 @@ import { useAuth } from "@/stores/auth";
 import { useUi } from "@/stores/ui";
 import { useWorkspaceStore } from "@/stores/workspace";
 import { useAdminStore } from "@/stores/admin";
+import { usePlatformCapabilities } from "@/hooks/use-queries";
 import { useT } from "@/lib/i18n";
 import {
   PRODUCT_AREAS,
@@ -100,6 +101,13 @@ function ProductSwitcher({
   const t = useT();
   const router = useRouter();
   const isPlatformAdmin = useAdminStore((s) => s.isPlatformAdmin);
+  const { data: platformCap } = usePlatformCapabilities();
+  const capabilities = (platformCap as Record<string, unknown> | undefined)?.capabilities as Record<string, unknown> | undefined;
+
+  function isCapabilityEnabled(key: string): boolean {
+    const val = capabilities?.[key];
+    return val === true || val === "enabled";
+  }
 
   // Filter product areas: show admin only if user is admin
   const visibleAreas = React.useMemo(() => {
@@ -110,11 +118,31 @@ function ProductSwitcher({
   const activeConfig = PRODUCT_AREAS.find((p) => p.id === activeProduct);
 
   const handleSelect = (area: ProductConfig) => {
+    // Check capabilities for banking and advisory
+    if (area.id === "banking" && !isCapabilityEnabled("banking")) {
+      toast.info("Banking em preparacao. Sera ativado em breve.");
+      return;
+    }
+    if (area.id === "advisory" && !isCapabilityEnabled("advisory")) {
+      toast.info("Advisory em preparacao. Sera ativado em breve.");
+      return;
+    }
+    // Admin check
+    if (area.id === "admin" && !isPlatformAdmin) return;
+
     onSelect(area.id);
     // Navigate to the default route for that product
     const defaultRoute = area.id === "admin" ? "/admin" : `/${area.id}/overview`;
     router.push(defaultRoute);
   };
+
+  // Track disabled areas for badge rendering
+  const disabledAreas = React.useMemo(() => {
+    const disabled = new Set<string>();
+    if (!isCapabilityEnabled("banking")) disabled.add("banking");
+    if (!isCapabilityEnabled("advisory")) disabled.add("advisory");
+    return disabled;
+  }, [capabilities]);
 
   if (compact) {
     return (
@@ -148,7 +176,10 @@ function ProductSwitcher({
               >
                 {area.label[0]}
               </div>
-              <span>{area.tKey ? t(area.tKey) : area.label}</span>
+              <span className="flex-1">{area.tKey ? t(area.tKey) : area.label}</span>
+              {disabledAreas.has(area.id) && (
+                <span className="text-[10px] text-amber-400">Em breve</span>
+              )}
               {activeProduct === area.id && (
                 <Check className="ml-auto h-3.5 w-3.5" />
               )}
@@ -207,6 +238,9 @@ function ProductSwitcher({
               {area.label[0]}
             </div>
             <span className="flex-1">{area.tKey ? t(area.tKey) : area.label}</span>
+            {disabledAreas.has(area.id) && (
+              <span className="text-[10px] text-amber-400">Em breve</span>
+            )}
             {activeProduct === area.id && (
               <Check className="ml-auto h-3.5 w-3.5" />
             )}

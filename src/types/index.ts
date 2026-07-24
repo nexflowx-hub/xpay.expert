@@ -106,6 +106,7 @@ export interface WalletSummary {
   totalBalance: number;
   totalAvailable: number;
   totalReserved: number;
+  totalPending: number;
   currencies: number;
 }
 
@@ -653,7 +654,7 @@ export interface Settlement {
   xpayFee: number;
   merchantNet: number;
   providerAvailableDate: string;
-  status: "pending" | "available" | "released" | "processing";
+  status: "pending_provider" | "pending_review" | "held" | "ready" | "released" | "pending" | "available" | "processing";
   createdAt: string;
   releasedAt?: string;
 }
@@ -754,11 +755,18 @@ export interface MerchantPayout {
 }
 
 export interface MerchantPayoutOptions {
-  methods: MerchantPayoutMethod[];
-  defaultCurrency: CurrencyCode;
-  minAmount: Record<CurrencyCode, number>;
-  maxAmount: Record<CurrencyCode, number>;
-  pixKeyTypes: PixKeyType[];
+  ledgerDomain: string;
+  executionMode: string;
+  fxMode: string;
+  automaticExecution: boolean;
+  automaticFx: boolean;
+  methods: Array<{
+    code: MerchantPayoutMethod;
+    payoutCurrency: CurrencyCode;
+    network?: string;
+    pixKeyTypes?: PixKeyType[];
+    destinationFields: string[];
+  }>;
 }
 
 export interface MerchantPayoutValidation {
@@ -874,4 +882,53 @@ export interface PlatformCapabilities {
     whatsapp: boolean;
   };
   generatedAt: string;
+}
+
+// ---- Raw settlement batch from backend (snake_case) ----
+export interface RawSettlementBatch {
+  id: string;
+  merchant_id: string;
+  store_id: string;
+  store_name: string;
+  store_code: string;
+  gateway_vault_id: string;
+  provider: string;
+  currency: CurrencyCode;
+  business_date: string;
+  status: string;
+  transaction_count: number;
+  gross_amount: number;
+  provider_fee: number;
+  platform_fee: number;
+  merchant_net: number;
+  provider_available_at: string;
+  ready_at?: string;
+  released_at?: string;
+  created_at: string;
+}
+
+// ---- Settlement overview from GET settlements/overview ----
+export interface SettlementOverview {
+  totalGross: number;
+  totalProviderFee: number;
+  totalPlatformFee: number;
+  totalMerchantNet: number;
+  pendingReviewCount: number;
+  heldCount: number;
+  releasedCount: number;
+  currency: CurrencyCode;
+}
+
+// ---- Transaction stats extended ----
+export interface TransactionStatsExtended {
+  total: number;
+  succeeded: number;
+  pending: number;
+  failed: number;
+  volume: number;
+  grossVolume?: number;
+  recordedFees?: number;
+  netAfterRecordedFees?: number;
+  feeBasis?: string;
+  reconciliationStatus?: string;
 }

@@ -362,6 +362,9 @@ export function CurrencyBadge({ currency }: { currency: string }) {
   );
 }
 
+// ---- CapabilityPlaceholderPage ----
+export { CapabilityPlaceholderPage } from "./capability-placeholder-page";
+
 // ---- Sparkline (simple SVG mini chart) ----
 export function Sparkline({ data, color = "var(--primary)", height = 32, width = 120 }: { data: number[]; color?: string; height?: number; width?: number }) {
   if (!data.length) return null;
