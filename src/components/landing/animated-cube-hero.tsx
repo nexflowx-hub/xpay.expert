@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Float } from "@react-three/drei";
-import { Bloom, EffectComposer, Noise, Vignette } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { motion, AnimatePresence } from "framer-motion";
 import { useReducedMotion } from "framer-motion";
 import * as THREE from "three";
@@ -36,14 +36,10 @@ const TOAST_POSITIONS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Globe connection data — cities as [lat, lng]
+// Globe data
 // ---------------------------------------------------------------------------
 
-interface City {
-  lat: number;
-  lng: number;
-  name: string;
-}
+interface City { lat: number; lng: number; name: string }
 
 const CITIES: City[] = [
   { lat: 40.71, lng: -74.01, name: "New York" },
@@ -68,7 +64,6 @@ const CITIES: City[] = [
   { lat: -43.53, lng: 172.63, name: "Christchurch" },
 ];
 
-// Predefined connections between cities (index pairs)
 const CONNECTIONS: [number, number][] = [
   [0, 1], [1, 2], [0, 3], [4, 1], [5, 2],
   [6, 1], [7, 4], [0, 8], [9, 5], [10, 5],
@@ -77,7 +72,34 @@ const CONNECTIONS: [number, number][] = [
   [3, 13], [8, 11], [7, 0], [5, 16], [10, 1],
 ];
 
-// Convert lat/lng to 3D position on sphere
+// ---------------------------------------------------------------------------
+// Simplified continent outlines (lat, lng) — enough points to be recognizable
+// ---------------------------------------------------------------------------
+
+const CONTINENTS: [number, number][][] = [
+  // North America
+  [[70,-165],[72,-130],[70,-100],[65,-88],[55,-60],[47,-53],[44,-65],[43,-70],[40,-74],[30,-82],[25,-80],[25,-97],[20,-105],[30,-118],[38,-123],[48,-124],[55,-133],[58,-152],[60,-165]],
+  // South America
+  [[12,-72],[10,-67],[7,-60],[5,-52],[0,-50],[-3,-41],[-8,-35],[-15,-39],[-23,-43],[-28,-49],[-33,-53],[-40,-63],[-46,-66],[-52,-70],[-55,-68],[-52,-75],[-42,-73],[-30,-71],[-18,-70],[-5,-80],[2,-78],[8,-77]],
+  // Europe
+  [[71,28],[70,40],[65,42],[60,30],[55,28],[54,10],[55,0],[51,2],[48,-5],[44,-9],[37,-9],[36,-6],[38,0],[40,4],[43,6],[44,12],[46,14],[48,17],[52,14],[54,10],[56,12],[58,18],[60,25],[64,20],[68,16]],
+  // Africa
+  [[37,-1],[35,10],[32,12],[30,32],[22,37],[12,44],[5,42],[0,42],[-5,40],[-12,40],[-20,35],[-26,33],[-34,18],[-34,26],[-28,32],[-15,40],[-5,12],[4,1],[5,-5],[15,-17],[20,-17],[25,-15],[30,-10],[35,-2]],
+  // Asia
+  [[72,180],[70,140],[65,135],[60,163],[55,163],[50,143],[45,143],[43,132],[38,128],[35,129],[32,122],[22,114],[22,108],[10,106],[1,104],[6,98],[8,77],[25,68],[25,57],[12,45],[30,35],[35,36],[42,44],[42,52],[37,55],[25,57]],
+  // Australia
+  [[-12,131],[-15,141],[-18,146],[-24,152],[-28,153],[-33,152],[-37,150],[-39,146],[-35,137],[-32,133],[-28,114],[-22,114],[-15,129]],
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const R = 1.8; // globe radius
+const CYAN = new THREE.Color("#00e5ff");
+const CYAN_GLOW = new THREE.Color("#00ffcc");
+const LAND_COLOR = new THREE.Color("#0ef0c8");
+
 function latLngToVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
   const phi = (90 - lat) * (Math.PI / 180);
   const theta = (lng + 180) * (Math.PI / 180);
@@ -88,230 +110,308 @@ function latLngToVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
   );
 }
 
-// Create a curved arc between two points on the sphere
-function createArcGeometry(
-  start: THREE.Vector3,
-  end: THREE.Vector3,
-  segments = 64,
-): THREE.BufferGeometry {
-  const points: THREE.Vector3[] = [];
+function createArcCurve(start: THREE.Vector3, end: THREE.Vector3) {
   const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-  const distance = start.distanceTo(end);
-  // Lift the arc higher for longer connections
-  mid.normalize().multiplyScalar(2.2 + distance * 0.18);
-
-  const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
-  for (let i = 0; i <= segments; i++) {
-    points.push(curve.getPoint(i / segments));
-  }
-
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  // Add a "progress" attribute for animation
-  const drawRange = new Float32Array(segments + 1);
-  for (let i = 0; i <= segments; i++) {
-    drawRange[i] = i / segments;
-  }
-  geometry.setAttribute("aProgress", new THREE.BufferAttribute(drawRange, 1));
-  return geometry;
+  const dist = start.distanceTo(end);
+  mid.normalize().multiplyScalar(R + 0.35 + dist * 0.16);
+  return new THREE.QuadraticBezierCurve3(start, mid, end);
 }
 
 // ---------------------------------------------------------------------------
-// 3D Globe components
+// Starfield background
 // ---------------------------------------------------------------------------
 
-const GLOBE_RADIUS = 1.8;
-const CYAN = new THREE.Color("#00e5ff");
-
-const CYAN_GLOW = new THREE.Color("#00ffcc");
-
-function GlobeSphere() {
-  const meshRef = React.useRef<THREE.Mesh>(null);
-
-  // Create a wireframe sphere with continent-like dots
-  const dotsGeometry = React.useMemo(() => {
-    const positions: number[] = [];
-    const count = 4000;
+function Starfield() {
+  const count = 1200;
+  const geo = React.useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      // Fibonacci sphere distribution
-      const phi = Math.acos(1 - (2 * (i + 0.5)) / count);
-      const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5);
-      const x = GLOBE_RADIUS * Math.sin(phi) * Math.cos(theta);
-      const y = GLOBE_RADIUS * Math.cos(phi);
-      const z = GLOBE_RADIUS * Math.sin(phi) * Math.sin(theta);
-      // Only keep some points to simulate landmass distribution
-      positions.push(x, y, z);
+      const r = 15 + Math.random() * 25;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      pos[i * 3 + 2] = r * Math.cos(phi);
+      sizes[i] = 0.3 + Math.random() * 1.2;
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    return geo;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+    return g;
+  }, []);
+
+  useFrame(({ clock }) => {
+    // Very slow rotation for parallax feel
+  });
+
+  return (
+    <points geometry={geo}>
+      <pointsMaterial
+        color="#aaccff"
+        size={0.08}
+        transparent
+        opacity={0.6}
+        sizeAttenuation
+      />
+    </points>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Realistic Globe
+// ---------------------------------------------------------------------------
+
+function GlobeBody() {
+  // Continent outlines as point cloud
+  const continentGeo = React.useMemo(() => {
+    const positions: number[] = [];
+    for (const continent of CONTINENTS) {
+      for (let j = 0; j < continent.length; j++) {
+        const [lat, lng] = continent[j];
+        const [lat2, lng2] = continent[(j + 1) % continent.length];
+        // Interpolate between vertices for density
+        const steps = 4;
+        for (let s = 0; s < steps; s++) {
+          const t = s / steps;
+          const latI = lat + (lat2 - lat) * t;
+          const lngI = lng + (lng2 - lng) * t;
+          const v = latLngToVec3(latI, lngI, R + 0.003);
+          positions.push(v.x, v.y, v.z);
+        }
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return g;
+  }, []);
+
+  // Latitude/longitude grid
+  const gridGeo = React.useMemo(() => {
+    const positions: number[] = [];
+    // Latitude lines every 30°
+    for (let lat = -60; lat <= 60; lat += 30) {
+      for (let lng = -180; lng < 180; lng += 3) {
+        const a = latLngToVec3(lat, lng, R + 0.002);
+        const b = latLngToVec3(lat, lng + 3, R + 0.002);
+        positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+    }
+    // Longitude lines every 30°
+    for (let lng = -180; lng < 180; lng += 30) {
+      for (let lat = -90; lat < 90; lat += 3) {
+        const a = latLngToVec3(lat, lng, R + 0.002);
+        const b = latLngToVec3(lat + 3, lng, R + 0.002);
+        positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return g;
   }, []);
 
   return (
     <group>
-      {/* Main wireframe sphere */}
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[GLOBE_RADIUS, 48, 48]} />
-        <meshBasicMaterial
-          color="#0a1628"
-          wireframe
+      {/* Ocean sphere — deep dark blue with subtle shading */}
+      <mesh>
+        <sphereGeometry args={[R, 64, 64]} />
+        <meshPhongMaterial
+          color="#030d1a"
+          emissive="#001428"
+          emissiveIntensity={0.3}
+          shininess={25}
           transparent
-          opacity={0.15}
+          opacity={0.95}
         />
       </mesh>
 
-      {/* Dot field on sphere surface */}
-      <points geometry={dotsGeometry}>
+      {/* Lat/lng grid lines */}
+      <lineSegments geometry={gridGeo}>
+        <lineBasicMaterial color="#0a3d5c" transparent opacity={0.18} />
+      </lineSegments>
+
+      {/* Continent outlines — bright points tracing landmasses */}
+      <points geometry={continentGeo}>
         <pointsMaterial
-          color="#00a5b8"
-          size={0.018}
+          color={LAND_COLOR}
+          size={0.025}
           transparent
-          opacity={0.5}
+          opacity={0.85}
           sizeAttenuation
         />
       </points>
 
-      {/* Inner glow sphere */}
+      {/* Subtle inner glow to give depth */}
       <mesh>
-        <sphereGeometry args={[GLOBE_RADIUS * 0.97, 32, 32]} />
-        <meshBasicMaterial
-          color="#001a2e"
-          transparent
-          opacity={0.4}
-        />
+        <sphereGeometry args={[R * 0.995, 32, 32]} />
+        <meshBasicMaterial color="#001020" transparent opacity={0.3} side={THREE.BackSide} />
       </mesh>
     </group>
   );
 }
 
-function ConnectionArc({
-  from,
-  to,
-  index,
-  total,
-}: {
-  from: City;
-  to: City;
-  index: number;
-  total: number;
-}) {
-  const lineRef = React.useRef<THREE.Line>(null);
-  const progressRef = React.useRef(Math.random()); // Stagger start
+// ---------------------------------------------------------------------------
+// Atmosphere glow (fresnel edge effect)
+// ---------------------------------------------------------------------------
 
-  const geometry = React.useMemo(() => {
-    const start = latLngToVec3(from.lat, from.lng, GLOBE_RADIUS);
-    const end = latLngToVec3(to.lat, to.lng, GLOBE_RADIUS);
-    return createArcGeometry(start, end);
-  }, [from, to]);
+function Atmosphere() {
+  const meshRef = React.useRef<THREE.Mesh>(null);
 
-  useFrame(({ clock }) => {
-    if (!lineRef.current) return;
-    const elapsed = clock.elapsedTime;
-
-    // Each arc has its own phase offset for variety
-    const phase = (elapsed * 0.3 + index * 0.4) % 1;
-    const drawCount = Math.floor(phase * 65);
-    lineRef.current.geometry.setDrawRange(0, Math.max(1, drawCount));
-
-    // Fade the whole line in/out based on cycle
-    const mat = lineRef.current.material as THREE.LineBasicMaterial;
-    const fadeIn = Math.min(phase * 4, 1);
-    const fadeOut = phase > 0.7 ? 1 - (phase - 0.7) / 0.3 : 1;
-    mat.opacity = fadeIn * fadeOut * 0.8;
-  });
+  const material = React.useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        void main() {
+          float intensity = pow(0.72 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.5);
+          gl_FragColor = vec4(0.0, 0.85, 1.0, 1.0) * intensity * 0.55;
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false,
+    });
+  }, []);
 
   return (
-    <line ref={lineRef} geometry={geometry}>
-      <lineBasicMaterial
-        color={CYAN}
-        transparent
-        opacity={0.6}
-        linewidth={1}
-      />
-    </line>
+    <mesh ref={meshRef} material={material}>
+      <sphereGeometry args={[R * 1.14, 64, 64]} />
+    </mesh>
   );
 }
 
-function CityNode({ city, index }: { city: City; index: number }) {
-  const meshRef = React.useRef<THREE.Mesh>(null);
-  const glowRef = React.useRef<THREE.Mesh>(null);
-  const position = React.useMemo(
-    () => latLngToVec3(city.lat, city.lng, GLOBE_RADIUS),
-    [city],
-  );
+// ---------------------------------------------------------------------------
+// Connection arcs with traveling particles
+// ---------------------------------------------------------------------------
+
+function ConnectionArc({ from, to, index }: { from: City; to: City; index: number }) {
+  const lineRef = React.useRef<THREE.Line>(null);
+  const particleRef = React.useRef<THREE.Mesh>(null);
+
+  const curve = React.useMemo(() => {
+    const start = latLngToVec3(from.lat, from.lng, R);
+    const end = latLngToVec3(to.lat, to.lng, R);
+    return createArcCurve(start, end);
+  }, [from, to]);
+
+  const points = React.useMemo(() => curve.getPoints(80), [curve]);
+  const geo = React.useMemo(() => new THREE.BufferGeometry().setFromPoints(points), [points]);
 
   useFrame(({ clock }) => {
-    if (!meshRef.current) return;
     const elapsed = clock.elapsedTime;
-    // Pulsing scale
-    const pulse = 1 + Math.sin(elapsed * 2.5 + index * 1.3) * 0.4;
-    meshRef.current.scale.setScalar(pulse);
+    const speed = 0.18 + (index % 5) * 0.04;
+    const phase = (elapsed * speed + index * 0.37) % 1;
 
-    if (glowRef.current) {
-      const glowPulse = 1 + Math.sin(elapsed * 2.5 + index * 1.3) * 0.8;
-      glowRef.current.scale.setScalar(glowPulse);
-      const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = 0.15 + Math.sin(elapsed * 2.5 + index * 1.3) * 0.1;
+    // Animate the line draw range — trail effect
+    if (lineRef.current) {
+      const totalPts = 81;
+      const trailLen = 30;
+      const head = Math.floor(phase * totalPts);
+      const tail = Math.max(0, head - trailLen);
+      lineRef.current.geometry.setDrawRange(tail, head - tail);
+
+      const mat = lineRef.current.material as THREE.LineBasicMaterial;
+      mat.opacity = 0.45 + Math.sin(elapsed * 1.5 + index) * 0.15;
+    }
+
+    // Traveling particle at the head of the arc
+    if (particleRef.current) {
+      const pos = curve.getPoint(phase);
+      particleRef.current.position.copy(pos);
+      const scale = 0.6 + Math.sin(elapsed * 4 + index * 2) * 0.3;
+      particleRef.current.scale.setScalar(scale);
     }
   });
 
   return (
-    <group position={position.toArray()}>
-      {/* Core dot */}
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[0.025, 8, 8]} />
+    <group>
+      <line ref={lineRef} geometry={geo}>
+        <lineBasicMaterial color={CYAN} transparent opacity={0.5} />
+      </line>
+      <mesh ref={particleRef}>
+        <sphereGeometry args={[0.022, 6, 6]} />
         <meshBasicMaterial color={CYAN_GLOW} />
-      </mesh>
-      {/* Glow halo */}
-      <mesh ref={glowRef}>
-        <sphereGeometry args={[0.06, 8, 8]} />
-        <meshBasicMaterial color={CYAN} transparent opacity={0.2} />
       </mesh>
     </group>
   );
 }
+
+// ---------------------------------------------------------------------------
+// City node with pulse ring
+// ---------------------------------------------------------------------------
+
+function CityNode({ city, index }: { city: City; index: number }) {
+  const meshRef = React.useRef<THREE.Mesh>(null);
+  const ringRef = React.useRef<THREE.Mesh>(null);
+  const pos = React.useMemo(() => latLngToVec3(city.lat, city.lng, R + 0.01), [city]);
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    if (meshRef.current) {
+      const pulse = 1 + Math.sin(t * 2 + index * 1.7) * 0.35;
+      meshRef.current.scale.setScalar(pulse);
+    }
+    if (ringRef.current) {
+      const ringPulse = 1 + Math.sin(t * 2 + index * 1.7) * 0.6;
+      ringRef.current.scale.setScalar(ringPulse);
+      const mat = ringRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.12 + Math.sin(t * 2 + index * 1.7) * 0.08;
+    }
+  });
+
+  return (
+    <group position={pos.toArray()}>
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshBasicMaterial color={CYAN_GLOW} />
+      </mesh>
+      <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.04, 0.065, 24]} />
+        <meshBasicMaterial color={CYAN} transparent opacity={0.15} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Globe group with rotation
+// ---------------------------------------------------------------------------
 
 function GlobeNetwork({ reducedMotion }: { reducedMotion: boolean }) {
   const groupRef = React.useRef<THREE.Group>(null);
 
   useFrame(({ clock, pointer }, delta) => {
     if (!groupRef.current) return;
-    const time = clock.elapsedTime;
+    const t = clock.elapsedTime;
+    const targetY = t * (reducedMotion ? 0 : 0.06) + pointer.x * 0.25;
+    const targetX = (23.5 * Math.PI / 180) + pointer.y * 0.12; // real axial tilt
 
-    // Slow auto-rotation + pointer parallax
-    const targetY = time * (reducedMotion ? 0 : 0.08) + pointer.x * 0.3;
-    const targetX = pointer.y * 0.15;
-
-    groupRef.current.rotation.y = THREE.MathUtils.damp(
-      groupRef.current.rotation.y,
-      targetY,
-      3,
-      delta,
-    );
-    groupRef.current.rotation.x = THREE.MathUtils.damp(
-      groupRef.current.rotation.x,
-      targetX,
-      3,
-      delta,
-    );
+    groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, targetY, 2.5, delta);
+    groupRef.current.rotation.x = THREE.MathUtils.damp(groupRef.current.rotation.x, targetX, 2.5, delta);
   });
 
   return (
     <Float
-      speed={reducedMotion ? 0 : 0.6}
+      speed={reducedMotion ? 0 : 0.4}
       rotationIntensity={0}
-      floatIntensity={reducedMotion ? 0 : 0.15}
-      floatingRange={[-0.05, 0.05]}
+      floatIntensity={reducedMotion ? 0 : 0.1}
+      floatingRange={[-0.04, 0.04]}
     >
       <group ref={groupRef}>
-        <GlobeSphere />
-        {CONNECTIONS.map(([fromIdx, toIdx], i) => (
-          <ConnectionArc
-            key={`arc-${i}`}
-            from={CITIES[fromIdx]}
-            to={CITIES[toIdx]}
-            index={i}
-            total={CONNECTIONS.length}
-          />
+        <GlobeBody />
+        <Atmosphere />
+        {CONNECTIONS.map(([fi, ti], i) => (
+          <ConnectionArc key={`arc-${i}`} from={CITIES[fi]} to={CITIES[ti]} index={i} />
         ))}
         {CITIES.map((city, i) => (
           <CityNode key={city.name} city={city} index={i} />
@@ -321,94 +421,47 @@ function GlobeNetwork({ reducedMotion }: { reducedMotion: boolean }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Scene
+// ---------------------------------------------------------------------------
+
 function Scene({ reducedMotion }: { reducedMotion: boolean }) {
   return (
     <>
       <color attach="background" args={["#020810"]} />
-      <fog attach="fog" args={["#020810", 6, 14]} />
 
-      <ambientLight intensity={0.15} />
-      <pointLight position={[3, 4, 5]} intensity={15} distance={12} color="#00e5ff" />
-      <pointLight position={[-3, -2, 4]} intensity={10} distance={10} color="#0088aa" />
+      <Starfield />
+
+      {/* Directional sunlight from upper-right */}
+      <directionalLight position={[5, 3, 4]} intensity={1.8} color="#c8e8ff" />
+      <ambientLight intensity={0.08} />
+      {/* Cyan accent fill from below-left */}
+      <pointLight position={[-4, -3, 2]} intensity={8} distance={12} color="#006688" />
+      {/* Subtle warm rim from behind */}
+      <pointLight position={[0, 2, -6]} intensity={5} distance={10} color="#00aacc" />
 
       <GlobeNetwork reducedMotion={reducedMotion} />
 
-      {/* Ambient particle ring */}
-      <AmbientParticles />
-
       <EffectComposer multisampling={0}>
-        <Bloom
-          intensity={1.6}
-          luminanceThreshold={0.1}
-          luminanceSmoothing={0.9}
-          mipmapBlur
-        />
-        <Noise opacity={0.018} />
-        <Vignette eskil={false} offset={0.2} darkness={0.85} />
+        <Bloom intensity={1.3} luminanceThreshold={0.08} luminanceSmoothing={0.95} mipmapBlur />
+        <Vignette eskil={false} offset={0.25} darkness={0.82} />
       </EffectComposer>
     </>
   );
 }
 
-function AmbientParticles() {
-  const ref = React.useRef<THREE.Points>(null);
-  const count = 200;
-
-  const positions = React.useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 12;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 12;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 12;
-    }
-    return pos;
-  }, []);
-
-  useFrame(({ clock }) => {
-    if (!ref.current) return;
-    ref.current.rotation.y = clock.elapsedTime * 0.015;
-    ref.current.rotation.x = Math.sin(clock.elapsedTime * 0.01) * 0.1;
-  });
-
-  return (
-    <points ref={ref}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          array={positions}
-          count={count}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial
-        color="#00a5b8"
-        size={0.02}
-        transparent
-        opacity={0.35}
-        sizeAttenuation
-      />
-    </points>
-  );
-}
-
 // ---------------------------------------------------------------------------
-// Payment notification toasts — integrated over the globe
+// Payment notification toasts
 // ---------------------------------------------------------------------------
 
 function PaymentToast() {
   const [idx, setIdx] = React.useState(0);
   React.useEffect(() => {
-    const timer = setInterval(
-      () => setIdx((i) => (i + 1) % LIVE_PAYMENTS.length),
-      2800,
-    );
+    const timer = setInterval(() => setIdx((i) => (i + 1) % LIVE_PAYMENTS.length), 2800);
     return () => clearInterval(timer);
   }, []);
 
-  const toasts = [
-    LIVE_PAYMENTS[idx],
-    LIVE_PAYMENTS[(idx + 3) % LIVE_PAYMENTS.length],
-  ];
+  const toasts = [LIVE_PAYMENTS[idx], LIVE_PAYMENTS[(idx + 3) % LIVE_PAYMENTS.length]];
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
@@ -422,37 +475,18 @@ function PaymentToast() {
               exit={{ opacity: 0, y: -8, scale: 0.95, filter: "blur(3px)" }}
               transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
               className="absolute flex items-center gap-2.5 rounded-xl border border-white/[0.08] bg-black/50 px-3 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl"
-              style={{
-                ...pos,
-                maxWidth: i === 0 ? "52%" : "46%",
-              }}
+              style={{ ...pos, maxWidth: i === 0 ? "52%" : "46%" }}
             >
-              {/* Live pulse indicator */}
               <span className="relative flex size-2 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                 <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
               </span>
-
-              {/* Payment method icon */}
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-sm">
-                {p.icon}
-              </span>
-
-              {/* Payment info */}
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-sm">{p.icon}</span>
               <div className="flex min-w-0 flex-col">
-                <span className="truncate text-[10px] font-medium uppercase tracking-wider text-white/50">
-                  Pagamento recebido
-                </span>
-                <span className="truncate text-xs font-bold text-white/90">
-                  {formatCurrency(p.amount, p.currency)}{" "}
-                  <span className="font-normal text-white/40">· {p.method}</span>
-                </span>
+                <span className="truncate text-[10px] font-medium uppercase tracking-wider text-white/50">Pagamento recebido</span>
+                <span className="truncate text-xs font-bold text-white/90">{formatCurrency(p.amount, p.currency)} <span className="font-normal text-white/40">· {p.method}</span></span>
               </div>
-
-              {/* Origin */}
-              <span className="ml-auto shrink-0 text-[10px] text-white/30">
-                {p.from}
-              </span>
+              <span className="ml-auto shrink-0 text-[10px] text-white/30">{p.from}</span>
             </motion.div>
           </AnimatePresence>
         );
@@ -462,7 +496,7 @@ function PaymentToast() {
 }
 
 // ---------------------------------------------------------------------------
-// Static fallback for devices without WebGL
+// Static fallback
 // ---------------------------------------------------------------------------
 
 function StaticGlobeFallback() {
@@ -472,7 +506,6 @@ function StaticGlobeFallback() {
       <div className="relative size-48 rounded-full border border-cyan-500/20 bg-cyan-950/30">
         <div className="absolute inset-4 rounded-full border border-cyan-400/10" />
         <div className="absolute inset-8 rounded-full border border-cyan-400/5" />
-        {/* Simulated arcs */}
         <svg className="absolute inset-0 size-full" viewBox="0 0 200 200">
           <path d="M40,60 Q100,10 160,80" fill="none" stroke="rgba(0,229,255,0.3)" strokeWidth="1" />
           <path d="M30,120 Q100,60 170,100" fill="none" stroke="rgba(0,229,255,0.2)" strokeWidth="1" />
@@ -484,7 +517,7 @@ function StaticGlobeFallback() {
 }
 
 // ---------------------------------------------------------------------------
-// Main exported component
+// Main export
 // ---------------------------------------------------------------------------
 
 export function AnimatedCubeHero({ className = "" }: { className?: string }) {
@@ -493,12 +526,9 @@ export function AnimatedCubeHero({ className = "" }: { className?: string }) {
 
   React.useEffect(() => {
     try {
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("webgl2") || canvas.getContext("webgl");
-      setWebglAvailable(Boolean(context));
-    } catch {
-      setWebglAvailable(false);
-    }
+      const c = document.createElement("canvas");
+      setWebglAvailable(Boolean(c.getContext("webgl2") || c.getContext("webgl")));
+    } catch { setWebglAvailable(false); }
   }, []);
 
   return (
@@ -507,28 +537,21 @@ export function AnimatedCubeHero({ className = "" }: { className?: string }) {
       role="img"
       aria-label="Globo 3D interativo com rotas de pagamento globais em tempo real."
     >
-      {/* Ambient grid overlay */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background: `
-            radial-gradient(circle at 50% 46%, rgba(0,229,255,0.08), transparent 40%),
-            radial-gradient(circle at 65% 55%, rgba(0,136,170,0.05), transparent 45%),
-            linear-gradient(rgba(0,229,255,0.02) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,229,255,0.02) 1px, transparent 1px)
+            radial-gradient(circle at 50% 46%, rgba(0,229,255,0.06), transparent 40%),
+            radial-gradient(circle at 65% 55%, rgba(0,136,170,0.03), transparent 45%)
           `,
-          backgroundSize: "auto, auto, 42px 42px, 42px 42px",
         }}
       />
-
-      {/* Bottom ambient glow */}
-      <div className="pointer-events-none absolute inset-x-[20%] bottom-[5%] h-20 rounded-[50%] bg-cyan-500/10 blur-3xl" />
-      <div className="pointer-events-none absolute inset-x-[35%] bottom-[2%] h-14 rounded-[50%] bg-cyan-400/5 blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-[20%] bottom-[5%] h-20 rounded-[50%] bg-cyan-500/8 blur-3xl" />
 
       {webglAvailable ? (
         <Canvas
           dpr={[1, 1.6]}
-          camera={{ position: [0, 0.5, 5.5], fov: 38, near: 0.1, far: 50 }}
+          camera={{ position: [0, 0.8, 5.2], fov: 36, near: 0.1, far: 80 }}
           gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
           frameloop={reducedMotion ? "demand" : "always"}
           className="relative z-10"
@@ -539,17 +562,11 @@ export function AnimatedCubeHero({ className = "" }: { className?: string }) {
         <StaticGlobeFallback />
       )}
 
-      {/* Live payment notification toasts */}
       <PaymentToast />
 
-      {/* Bottom tagline */}
       <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 text-center">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.38em] text-white/60">
-          Global payment network
-        </p>
-        <p className="mt-1.5 text-[9px] uppercase tracking-[0.3em] text-cyan-400/50">
-          Route · Connect · Scale
-        </p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.38em] text-white/60">Global payment network</p>
+        <p className="mt-1.5 text-[9px] uppercase tracking-[0.3em] text-cyan-400/50">Route · Connect · Scale</p>
       </div>
     </div>
   );
