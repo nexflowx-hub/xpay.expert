@@ -1,3 +1,5 @@
+import styles from './world-flow-map.module.css';
+
 type Position = [number, number];
 type Ring = Position[];
 type Polygon = Ring[];
@@ -135,14 +137,14 @@ export async function WorldFlowMap() {
   const detailed = countries.length > 100;
 
   return (
-    <div className="worldflow worldflow-hq" aria-label="Rede internacional XPay Expert">
+    <div className={`worldflow ${styles.hq}`} aria-label="Rede internacional XPay Expert">
       <div className="worldflow-head">
         <span className="live-dot" />
         <span>Global Operations Network</span>
         <small>Entity · Banking · Acquiring · Infrastructure</small>
       </div>
 
-      <div className="worldflow-stage">
+      <div className={styles.stage}>
         <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Mapa geográfico operacional com fluxos internacionais" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="mapLand" x1="0" y1="0" x2="1" y2="1">
@@ -167,22 +169,22 @@ export async function WorldFlowMap() {
 
           <rect x="0" y="0" width={WIDTH} height={HEIGHT} fill="url(#oceanGlow)" />
 
-          <g className="geo-grid" aria-hidden="true">
+          <g className={styles.geoGrid} aria-hidden="true">
             {[180, 360, 540, 720, 900, 1080].map((x) => <line key={`gx-${x}`} x1={x} y1="24" x2={x} y2="536" />)}
             {[120, 220, 320, 420].map((y) => <line key={`gy-${y}`} x1="22" y1={y} x2="1178" y2={y} />)}
           </g>
 
-          <g className="country-layer">
+          <g className={styles.countryLayer}>
             {detailed
               ? countries.map((country, index) => (
-                  <path key={`${country.code}-${index}`} d={country.d} className="country-shape" vectorEffect="non-scaling-stroke" />
+                  <path key={`${country.code}-${index}`} d={country.d} className={styles.countryShape} vectorEffect="non-scaling-stroke" />
                 ))
               : fallbackCountries.map((d, index) => (
-                  <path key={`fallback-${index}`} d={d} className="country-shape fallback-country" vectorEffect="non-scaling-stroke" />
+                  <path key={`fallback-${index}`} d={d} className={`${styles.countryShape} ${styles.fallbackCountry}`} vectorEffect="non-scaling-stroke" />
                 ))}
           </g>
 
-          <g className="flows-hq" fill="none" stroke="url(#flowHQ)" strokeWidth="2.4" vectorEffect="non-scaling-stroke">
+          <g className={styles.flowsHq} fill="none" stroke="url(#flowHQ)" strokeWidth="2.4" vectorEffect="non-scaling-stroke">
             {routes.map((route, index) => <path key={`route-${index}`} d={route} pathLength="100" />)}
           </g>
 
@@ -195,7 +197,7 @@ export async function WorldFlowMap() {
           <g className="mapnodes">
             {nodes.map((item, index) => (
               <g key={item.code} transform={`translate(${item.x.toFixed(2)} ${item.y.toFixed(2)})`}>
-                <circle r="18" className="node-halo" style={{ animationDelay: `${index * 0.18}s` }} />
+                <circle r="18" className={styles.nodeHalo} style={{ animationDelay: `${index * 0.18}s` }} />
                 <circle r="10" className="node-ring" />
                 <circle r="4" className="node-core" />
                 <text x="16" y="4" className="node-label">{item.label}</text>
@@ -204,7 +206,7 @@ export async function WorldFlowMap() {
           </g>
         </svg>
 
-        <div className="map-quality-pill">Natural Earth · Vector Network</div>
+        <div className={styles.qualityPill}>Natural Earth · Vector Network</div>
       </div>
 
       <div className="worldflow-foot">
