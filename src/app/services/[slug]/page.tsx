@@ -14,7 +14,9 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
   return <main className="detail"><div className="shell">
     <div className="detailgrid">
       <section className="panel">
+        <div className="flag" aria-hidden="true">{service.flag}</div>
         <span className="eyebrow">{service.jurisdiction}{service.premium ? ' · Premium' : ''}</span>
+        {service.premium && <div className="premium-glow">{service.settlementLabel || 'Liquidação D0–1'}</div>}
         <h1 style={{fontSize:'clamp(36px,5vw,62px)',letterSpacing:'-.05em',lineHeight:1.02}}>{service.name}</h1>
         <p className="muted" style={{fontSize:18}}>{service.subtitle}</p>
         <div className="divider" />
@@ -24,7 +26,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         <p className="muted">Contratação e pagamento → recolha de informações → constituição da estrutura → onboarding de banking/adquirentes → infraestrutura digital → configuração XPAYMENTS → quality check → entrega.</p>
         <div className="notice"><strong>Condições.</strong> KYC/KYB e aprovação por bancos, adquirentes, telecoms ou outros terceiros são independentes e não são garantidos. O prazo começa após receção e validação da documentação necessária.</div>
       </section>
-      <aside className="panel">
+      <aside className={`panel ${service.premium ? 'premium' : ''}`}>
         <div className="kicker">Setup da estrutura</div>
         <div className="price">€ {service.prices.EUR.toLocaleString('pt-PT')}</div>
         <p className="pricealt">R$ {service.prices.BRL.toLocaleString('pt-BR')} · {service.prices.USDT.toLocaleString('pt-PT')} USDT</p>
