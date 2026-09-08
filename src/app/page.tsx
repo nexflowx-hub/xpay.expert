@@ -1,118 +1,46 @@
-"use client";
+import Link from 'next/link';
+import { services } from '@/lib/services';
 
-import { useEffect, Suspense } from "react";
-import { useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
-import { useAuth } from "@/stores/auth";
-import { usePlatformBootstrap } from "@/hooks/use-queries";
-import { usePlatformStore } from "@/stores/platform";
-import { useWorkspaceStore } from "@/stores/workspace";
-import { HeroErrorBoundary } from "@/components/shared/hero-error-boundary";
+const euro = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
-const LandingPage = dynamic(
-  () =>
-    import("@/components/landing/landing-page"),
-  {
-    loading: () => <LandingFallback />,
-    ssr: false,
-  }
-);
-
-function LandingFallback() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-4">
-        <div className="h-12 w-12 animate-pulse rounded-xl bg-muted" />
-        <div className="h-4 w-48 animate-pulse rounded bg-muted" />
+export default function Home() {
+  return <main>
+    <section className="hero"><div className="shell">
+      <span className="eyebrow">XPayments · Expert Operations</span>
+      <h1>Estrutura empresarial, banking, acquiring e infraestrutura. Num único fluxo operacional.</h1>
+      <p>O XPay Expert transforma a contratação de uma estrutura dedicada num processo rastreável: pagamento, recolha documental, constituição, banking, adquirência, domínio, email, número, website, VPS e ativação da nova Store no XPAYMENTS.</p>
+      <div className="actions"><Link className="btn primary" href="#services">Explorar serviços</Link><Link className="btn" href="/portal">Acompanhar contratação</Link></div>
+      <div className="stats">
+        <div className="stat"><strong>1 conta</strong><span>Mesmo Merchant XPAYMENTS</span></div>
+        <div className="stat"><strong>1 tracking</strong><span>Da contratação à entrega</span></div>
+        <div className="stat"><strong>Multi-provider</strong><span>Banking e acquiring</span></div>
+        <div className="stat"><strong>Store-ready</strong><span>Entrega integrada ao XPAYMENTS</span></div>
       </div>
-    </div>
-  );
-}
+    </div></section>
 
-function LoadingSpinner() {
-  return (
-    <div className="flex h-screen items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <p className="text-sm text-muted-foreground">Loading…</p>
+    <section id="services" className="section"><div className="shell">
+      <div className="sectionhead"><div><span className="eyebrow">Catálogo</span><h2>Estruturas dedicadas</h2></div><p className="muted">Setup inicial + gestão operacional de 20% da faturação processada, incluindo acompanhamento do fluxo até BRL ou USDT quando aplicável.</p></div>
+      <div className="grid">{services.map((service) => <article key={service.code} className={`card ${service.premium ? 'premium' : ''}`}>
+        <div className="tag">{service.jurisdiction}{service.premium ? ' · Premium' : ''}</div>
+        <h3>{service.name}</h3><p className="muted">{service.subtitle}</p>
+        <div className="price">{euro.format(service.prices.EUR)}</div><div className="pricealt">{brl.format(service.prices.BRL)} · {service.prices.USDT} USDT</div>
+        {service.availability && <div className="badges"><span className="badge">{service.availability}</span><span className="badge">{service.leadTime}</span></div>}
+        <ul className="list">{service.highlights.slice(0,4).map((item) => <li key={item}>{item}</li>)}</ul>
+        <div className="actions"><Link className="btn primary" href={`/services/${service.slug}`}>Ver serviço</Link><Link className="btn" href={`/portal?service=${service.slug}`}>Contratar</Link></div>
+      </article>)}</div>
+    </div></section>
+
+    <section id="process" className="section"><div className="shell">
+      <div className="sectionhead"><div><span className="eyebrow">Workflow</span><h2>Do pedido à Store ativa</h2></div></div>
+      <div className="timeline">
+        <div className="step"><b>01 · Contratação</b><span className="muted">Service Order, pagamento e confirmação.</span></div>
+        <div className="step"><b>02 · KYC/KYB</b><span className="muted">Recolha de dados e documentação necessária.</span></div>
+        <div className="step"><b>03 · Execução</b><span className="muted">Empresa, banking, acquiring e infraestrutura.</span></div>
+        <div className="step"><b>04 · Entrega</b><span className="muted">Store, GatewayVault, domínio, VPS e acessos.</span></div>
       </div>
-    </div>
-  );
-}
+    </div></section>
 
-export default function RootPage() {
-  const router = useRouter();
-  const { authenticated, sessionChecked, sessionStatus, hydrated, hydrate, networkError } = useAuth();
-  const { data: bootstrap } = usePlatformBootstrap(authenticated && sessionChecked);
-  const setBootstrap = usePlatformStore((s) => s.setBootstrap);
-  const setStores = useWorkspaceStore((s) => s.setStores);
-
-  // Hydrate auth on mount
-  useEffect(() => {
-    if (!hydrated) hydrate();
-  }, [hydrated, hydrate]);
-
-  // When bootstrap data arrives, hydrate stores
-  useEffect(() => {
-    if (bootstrap) {
-      setBootstrap(bootstrap);
-      if (bootstrap.workspace?.stores) {
-        setStores(bootstrap.workspace.stores);
-      }
-    }
-  }, [bootstrap, setBootstrap, setStores]);
-
-  // Redirect authenticated users to the dashboard
-  useEffect(() => {
-    if (authenticated && sessionChecked) {
-      router.replace("/commerce/overview");
-    }
-  }, [authenticated, sessionChecked, router]);
-
-  // Still hydrating
-  if (!hydrated || sessionStatus === "hydrating" || sessionStatus === "checking") {
-    return <LoadingSpinner />;
-  }
-
-  // Authenticated — redirect is in flight
-  if (authenticated && sessionChecked) {
-    return <LoadingSpinner />;
-  }
-
-  // Network error
-  if (networkError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="text-center space-y-4 max-w-md">
-          <div className="text-4xl">⚠️</div>
-          <h2 className="text-xl font-semibold">Unable to reach the server</h2>
-          <p className="text-sm text-muted-foreground">
-            The API is not responding. Please check your connection and try again.
-          </p>
-          <button
-            onClick={() => hydrate()}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Not authenticated — show landing page (isolated from global error boundary)
-  return (
-    <HeroErrorBoundary
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-background">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-pulse rounded-xl bg-muted" />
-            <div className="h-4 w-48 animate-pulse rounded bg-muted" />
-          </div>
-        </div>
-      }
-    >
-      <LandingPage />
-    </HeroErrorBoundary>
-  );
+    <section className="section"><div className="shell notice"><strong>Importante.</strong> A constituição e os serviços de infraestrutura são prestados mediante documentação válida. Contas bancárias, cartões, adquirência e outros serviços de terceiros dependem de KYC/KYB, elegibilidade e aprovação independente da respetiva instituição. Não existe garantia de aprovação.</div></section>
+  </main>;
 }
