@@ -1,13 +1,16 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getService, services } from '@/lib/services';
+import { getCatalog } from '@/lib/catalog';
+import { services } from '@/lib/services';
 
 export function generateStaticParams() { return services.map(({ slug }) => ({ slug })); }
 
 export default async function ServicePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const service = getService(slug);
+  const catalog = await getCatalog();
+  const service = catalog.find((item) => item.slug === slug);
   if (!service) notFound();
+
   return <main className="detail"><div className="shell">
     <div className="detailgrid">
       <section className="panel">
