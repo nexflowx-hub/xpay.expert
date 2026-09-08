@@ -1,10 +1,12 @@
 import Link from 'next/link';
-import { services } from '@/lib/services';
+import { getCatalog } from '@/lib/catalog';
 
 const euro = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
-export default function Home() {
+export default async function Home() {
+  const catalog = await getCatalog();
+
   return <main>
     <section className="hero"><div className="shell">
       <span className="eyebrow">XPayments · Expert Operations</span>
@@ -21,7 +23,7 @@ export default function Home() {
 
     <section id="services" className="section"><div className="shell">
       <div className="sectionhead"><div><span className="eyebrow">Catálogo</span><h2>Estruturas dedicadas</h2></div><p className="muted">Setup inicial + gestão operacional de 20% da faturação processada, incluindo acompanhamento do fluxo até BRL ou USDT quando aplicável.</p></div>
-      <div className="grid">{services.map((service) => <article key={service.code} className={`card ${service.premium ? 'premium' : ''}`}>
+      <div className="grid">{catalog.map((service) => <article key={service.code} className={`card ${service.premium ? 'premium' : ''}`}>
         <div className="tag">{service.jurisdiction}{service.premium ? ' · Premium' : ''}</div>
         <h3>{service.name}</h3><p className="muted">{service.subtitle}</p>
         <div className="price">{euro.format(service.prices.EUR)}</div><div className="pricealt">{brl.format(service.prices.BRL)} · {service.prices.USDT} USDT</div>
