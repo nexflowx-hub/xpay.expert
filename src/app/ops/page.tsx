@@ -1,3 +1,4 @@
+import './ops.css';
 import OpsClient from '@/components/ops-client';
 
 export const metadata = {
