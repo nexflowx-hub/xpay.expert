@@ -15,12 +15,26 @@ type ApiOffering = {
   availabilityLimit?: number | null;
   availabilityRemaining?: number | null;
   available?: boolean;
-  metadata?: { premium?: boolean; includes?: string[] };
+  metadata?: {
+    premium?: boolean;
+    includes?: string[];
+    countryFlag?: string;
+    countryCode?: string;
+    settlementLabel?: string;
+  };
 };
 
 const toNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const fallbackFlag = (code: string) => {
+  if (code.startsWith('UK-')) return '🇬🇧';
+  if (code.startsWith('FR-')) return '🇫🇷';
+  if (code.startsWith('US-')) return '🇺🇸';
+  if (code.startsWith('PT-')) return '🇵🇹';
+  return '🌐';
 };
 
 function mapOffering(item: ApiOffering): ServiceOffering {
@@ -36,6 +50,7 @@ function mapOffering(item: ApiOffering): ServiceOffering {
     name: item.name,
     subtitle: item.description || 'Serviço operacional XPay Expert.',
     jurisdiction: item.jurisdiction || 'Internacional',
+    flag: item.metadata?.countryFlag || fallbackFlag(item.code),
     currency: item.baseCurrency || 'EUR',
     prices: {
       EUR: toNumber(item.prices?.EUR),
@@ -46,6 +61,7 @@ function mapOffering(item: ApiOffering): ServiceOffering {
     leadTime: item.leadTime || 'Sob validação documental e KYC/KYB',
     availability,
     premium: Boolean(item.metadata?.premium),
+    settlementLabel: item.metadata?.settlementLabel,
     highlights: Array.isArray(item.metadata?.includes) ? item.metadata!.includes! : []
   };
 }
