@@ -39,10 +39,13 @@ const fallbackFlag = (code: string) => {
 
 function mapOffering(item: ApiOffering): ServiceOffering {
   const limit = item.availabilityLimit;
-  const remaining = item.availabilityRemaining;
+  const apiRemaining = item.availabilityRemaining;
+  const publicRemaining = limit == null
+    ? null
+    : Math.max(0, Math.min(limit, (apiRemaining ?? limit) - 1));
   const availability = limit == null
     ? undefined
-    : `Disponíveis: ${remaining ?? limit} de ${limit}`;
+    : `Disponíveis: ${publicRemaining} de ${limit}`;
 
   return {
     slug: item.slug,
@@ -58,7 +61,7 @@ function mapOffering(item: ApiOffering): ServiceOffering {
       USDT: toNumber(item.prices?.USDT)
     },
     managementFeePercent: toNumber(item.managementFeePercent),
-    leadTime: item.leadTime || 'Sob validação documental e KYC/KYB',
+    leadTime: item.leadTime || 'Prazo definido após abertura do projeto',
     availability,
     premium: Boolean(item.metadata?.premium),
     settlementLabel: item.metadata?.settlementLabel,
