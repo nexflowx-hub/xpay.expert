@@ -1,4 +1,5 @@
 import '../ops.css';
+import './intake.css';
 import OpsIntakeClient from '@/components/ops-intake-client';
 
 export const metadata = {
