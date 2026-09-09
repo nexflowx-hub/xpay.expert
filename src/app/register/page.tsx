@@ -1,3 +1,4 @@
+import './signup.css';
 import RegisterMerchantClient from '@/components/register-merchant-client';
 
 export const metadata = {
