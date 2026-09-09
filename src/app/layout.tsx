@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import XPayAssist from '@/components/xpay-assist';
 import './globals.css';
+import './marketing-v2.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://xpay.expert'),
