@@ -36,7 +36,17 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         <p><strong>Gestão operacional</strong><br/><span className="muted">{service.managementFeePercent}% da faturação processada, incluindo acompanhamento até BRL ou USDT quando aplicável.</span></p>
         <p><strong>Prazo</strong><br/><span className="muted">{service.leadTime}</span></p>
         {service.availability && <p><strong>Disponibilidade</strong><br/><span className="muted">{service.availability}</span></p>}
-        <div className="actions"><Link className="btn primary" href={`/portal?service=${service.slug}`}>Contratar agora</Link><a className="btn" href={wa}>Falar no WhatsApp</a></div>
+
+        <div className="notice" style={{marginTop:16}}>
+          <strong>Ainda não tem conta Merchant?</strong>
+          <p className="muted" style={{marginBottom:0}}>Crie a conta agora e avance diretamente para a contratação desta estrutura.</p>
+        </div>
+
+        <div className="actions">
+          <Link className="btn primary" href={`/register?service=${service.slug}`}>Criar conta e contratar</Link>
+          <Link className="btn" href={`/portal?service=${service.slug}`}>Já tenho conta</Link>
+          <a className="btn ghost" href={wa}>WhatsApp</a>
+        </div>
         <div className="divider" />
         <p className="muted" style={{fontSize:13}}>Precisa de outra jurisdição, licença Gaming, estrutura multiempresa ou projeto específico?</p>
         <a className="wa" href={`https://wa.me/351925386409?text=${encodeURIComponent('Olá, preciso de um projeto personalizado / cotação fora do catálogo XPay.Expert.')}`}>Pedir projeto personalizado →</a>
