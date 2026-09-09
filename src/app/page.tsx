@@ -17,8 +17,9 @@ export default async function Home() {
         <p>Empresa, banking, acquiring, domínio, email, número, website, VPS/API e integração XPAYMENTS organizados num único projeto, com acompanhamento do pedido à entrega.</p>
         <div className="actions">
           <Link className="btn primary" href="#services">Ver estruturas disponíveis</Link>
+          <Link className="btn" href="/register">Criar conta Merchant</Link>
           <a className="btn" href={wa('Olá, preciso de uma estrutura ou projeto personalizado e gostaria de falar com um especialista XPay.')}>Falar com especialista</a>
-          <Link className="btn ghost" href="/portal">Acompanhar contratação</Link>
+          <Link className="btn ghost" href="/portal">Já tenho conta</Link>
         </div>
       </div>
       <WorldFlowMap />
@@ -45,7 +46,11 @@ export default async function Home() {
         <div className="price">{euro.format(service.prices.EUR)}</div><div className="pricealt">{brl.format(service.prices.BRL)} · {service.prices.USDT} USDT</div>
         {(service.availability || service.leadTime) && <div className="badges">{service.availability && <span className="badge availability-badge">{service.availability}</span>}<span className="badge">{service.leadTime}</span></div>}
         <ul className="list">{service.highlights.slice(0,4).map((item) => <li key={item}>{item}</li>)}</ul>
-        <div className="actions"><Link className="btn primary" href={`/services/${service.slug}`}>Ver serviço</Link><Link className="btn" href={`/portal?service=${service.slug}`}>Contratar</Link></div>
+        <div className="actions">
+          <Link className="btn primary" href={`/portal?service=${service.slug}`}>Contratar</Link>
+          <Link className="btn" href={`/register?service=${service.slug}`}>Criar conta e contratar</Link>
+          <Link className="btn ghost" href={`/services/${service.slug}`}>Detalhes</Link>
+        </div>
       </article>)}</div>
     </div></section>
 
