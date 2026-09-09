@@ -11,6 +11,8 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
   const service = catalog.find((item) => item.slug === slug);
   if (!service) notFound();
 
+  const wa = `https://wa.me/351925386409?text=${encodeURIComponent(`Olá, pretendo avançar com ${service.name}. Gostaria de falar com um especialista XPay.`)}`;
+
   return <main className="detail"><div className="shell">
     <div className="detailgrid">
       <section className="panel">
@@ -23,8 +25,8 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         <h3>Incluído na estrutura</h3>
         <ul className="list">{service.highlights.map((item) => <li key={item}>{item}</li>)}</ul>
         <h3>Fluxo de entrega</h3>
-        <p className="muted">Contratação e pagamento → recolha de informações → constituição da estrutura → onboarding de banking/adquirentes → infraestrutura digital → configuração XPAYMENTS → quality check → entrega.</p>
-        <div className="notice"><strong>Condições.</strong> KYC/KYB e aprovação por bancos, adquirentes, telecoms ou outros terceiros são independentes e não são garantidos. O prazo começa após receção e validação da documentação necessária.</div>
+        <p className="muted">Contratação e pagamento → recolha de informações → constituição da estrutura → banking/adquirência → infraestrutura digital → configuração XPAYMENTS → quality check → entrega.</p>
+        <div className="notice"><strong>Projeto acompanhado.</strong> A equipa XPay centraliza a execução, o tracking e a entrega dos ativos do projeto num único fluxo operacional.</div>
       </section>
       <aside className={`panel ${service.premium ? 'premium' : ''}`}>
         <div className="kicker">Setup da estrutura</div>
@@ -34,7 +36,10 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         <p><strong>Gestão operacional</strong><br/><span className="muted">{service.managementFeePercent}% da faturação processada, incluindo acompanhamento até BRL ou USDT quando aplicável.</span></p>
         <p><strong>Prazo</strong><br/><span className="muted">{service.leadTime}</span></p>
         {service.availability && <p><strong>Disponibilidade</strong><br/><span className="muted">{service.availability}</span></p>}
-        <div className="actions"><Link className="btn primary" href={`/portal?service=${service.slug}`}>Contratar agora</Link><a className="btn" href={`https://wa.me/351925386409?text=${encodeURIComponent(`Olá, pretendo informações sobre ${service.name}`)}`}>WhatsApp</a></div>
+        <div className="actions"><Link className="btn primary" href={`/portal?service=${service.slug}`}>Contratar agora</Link><a className="btn" href={wa}>Falar no WhatsApp</a></div>
+        <div className="divider" />
+        <p className="muted" style={{fontSize:13}}>Precisa de outra jurisdição, licença Gaming, estrutura multiempresa ou projeto específico?</p>
+        <a className="wa" href={`https://wa.me/351925386409?text=${encodeURIComponent('Olá, preciso de um projeto personalizado / cotação fora do catálogo XPay.Expert.')}`}>Pedir projeto personalizado →</a>
       </aside>
     </div>
   </div></main>;
