@@ -20,6 +20,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Link href="/#services">Serviços</Link>
         <Link href="/#custom">Projetos personalizados</Link>
         <Link href="/#process">Como funciona</Link>
+        <Link className="btn primary" href="/register">Criar conta Merchant</Link>
         <Link className="btn ghost" href="/portal">Área Merchant</Link>
       </nav>
     </div></header>
